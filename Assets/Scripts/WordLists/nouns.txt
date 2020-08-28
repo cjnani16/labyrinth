@@ -1,0 +1,17 @@
+food
+fire
+maze
+person
+monster
+magic
+soul
+exit
+turn
+path
+home
+village
+end
+split
+woman
+man
+thing

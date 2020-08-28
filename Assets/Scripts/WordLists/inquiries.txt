@@ -1,0 +1,8 @@
+who:Name
+what:NP
+when:PP
+where:PP
+why:S
+how:oop
+whom:Name
+which:Dem

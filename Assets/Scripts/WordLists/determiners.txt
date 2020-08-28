@@ -1,0 +1,16 @@
+another
+both
+either
+enough
+extra
+few
+a
+an
+the
+next
+other
+same
+self
+some
+all
+any

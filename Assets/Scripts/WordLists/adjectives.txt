@@ -1,0 +1,12 @@
+powerful
+weak
+strong
+big
+small
+evil:09500
+kind:90000
+good:30090
+lost
+fast
+slow
+bad:00900
