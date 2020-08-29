@@ -7,11 +7,14 @@ namespace AIKit
     [System.Serializable]
     public class IsA : MonoBehaviour
     {
-        public List<string> InitalIdentity;
+        public List<string> InitialIdentity;
         public bool IsPlayer;
         public bool initialized = false;
         List<List<LexicalEntry>> Iam;
 
+        public IsA() {
+            Iam = new List<List<LexicalEntry>>();
+        }
 
         public bool AreYouPlayer() {
             return IsPlayer;
@@ -73,7 +76,7 @@ namespace AIKit
         // Start is called before the first frame update
         void Start()
         {
-            Iam = new List<List<LexicalEntry>>();
+            
         }
 
         // Update is called once per frame
@@ -84,7 +87,7 @@ namespace AIKit
                 //everything is something
                 //BecomeA("something"); //this is in KMs so it shouldn't be necessary rlly
 
-                foreach (string s in InitalIdentity) {
+                foreach (string s in InitialIdentity) {
                     BecomeA(s);
                 }
 
