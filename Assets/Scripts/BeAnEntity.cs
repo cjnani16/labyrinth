@@ -139,7 +139,7 @@ public class BeAnEntity : MonoBehaviour
         {
             this.self.processWitnessQueue();
             if (self.myGoals.Count > 0) {
-                if (this.self.knowledgeModule.isTrue(self.myGoals.Peek())) {
+                if (this.self.knowledgeModule.isTrue(self.myGoals.Peek(), out _)) {
                     Debug.Log(EntityName + " completed goal of "+self.myGoals.Peek().ToString() +"!");
                     self.myGoals.Pop();
                     self.curentPlan = null;

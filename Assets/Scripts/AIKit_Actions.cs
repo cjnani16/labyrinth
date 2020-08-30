@@ -11,7 +11,7 @@ namespace AIKit
         public static bool AbilityCheck(SemSentence action, KnowledgeModule module) {
             SemSentence abilityCheck = new SemSentence(action);
             abilityCheck.vp.verb = AIKit_Grammar.dictionary["can"+action.vp.verb.ToString()];
-            if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck)) {
+            if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck, out _)) {
                 Debug.LogError("Ability check is false:" + abilityCheck.ToString());
                 return false;
             }
@@ -22,7 +22,7 @@ namespace AIKit
             
 
             //check if this is already true (may be wonky that i need to do this)
-            if (entity.knowledgeModule.isTrue(plan.Peek())) {
+            if (entity.knowledgeModule.isTrue(plan.Peek(), out _)) {
                 plan.Pop();
                 return true;
             }

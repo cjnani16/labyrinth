@@ -123,7 +123,7 @@ namespace AIKit {
 
         void OnGUI() {
             if (!this.gui) return;
-            GUI.Label(new Rect(100,10,200,50), ", Year:"+currentDate.year+", Cycle:"+currentDate.year+", Season:"+currentDate.year+"Time:"+currentDate.ms);
+            GUI.Label(new Rect(900,630,600,50), "Year "+currentDate.year+", Cycle "+currentDate.cycle+", Season "+currentDate.season+", Time:"+currentDate.ms);
         }
     }
 }

@@ -306,6 +306,13 @@ namespace AIKit
         Entity entity;
         BeAnEntity beAnEntity;
         List<string> chatWindow;
+        static bool dictReady = false;
+
+        public static LexicalEntry EntryFor(string s) 
+        {
+            if (!dictReady) ParseDictionary();
+            return dictionary[s];
+        }
 
         static void ParseDictionary()
         {
@@ -514,6 +521,7 @@ namespace AIKit
             result.Add("then",le_then);
 
             dictionary = result;
+            dictReady = true;
         }
 
         public static List<WordClass> CollapseGrammar(List<WordClass> seen) {
@@ -1001,7 +1009,7 @@ namespace AIKit
             else 
             {
                 Debug.LogError(string.Join(" ", words.ToArray()));
-                throw new System.Exception("Sentence non-grammatical! Seen.Count is "+seen.Count+", and seen[0] is " + seen[0]);
+                throw new System.Exception("Sentence non-grammatical! Seen.Count is "+seen.Count+", and seen[0] is " + ((seen.Count > 0) ? seen[0].ToString() : "none"));
             }
         }
 
@@ -1152,10 +1160,13 @@ namespace AIKit
         // Start is called before the first frame update
         void Start()
         {
-            dictionary = new Dictionary<string, LexicalEntry>();
-            Debug.Log("Parsing word lists into Dicitonary...");
-            ParseDictionary();
-            Debug.Log("Dicitonary complete.");
+            if (!dictReady) 
+            {
+                dictionary = new Dictionary<string, LexicalEntry>();
+                Debug.Log("Parsing word lists into Dicitonary...");
+                ParseDictionary();
+                Debug.Log("Dicitonary complete.");
+            }
 
             entity = EntityToTalkTo.GetComponent<BeAnEntity>().GetSelf();
             Debug.Log("Loaded entity: " + entity.GetName());
@@ -1363,7 +1374,7 @@ namespace AIKit
                     Debug.Log(s);
                     chatWindow.Add(s);
                     
-                    Debug.Log("Truth value: "+entity.knowledgeModule.isTrue(statementParsed));
+                    Debug.Log("Truth value: "+entity.knowledgeModule.isTrue(statementParsed, out _));
                     
                 }
 

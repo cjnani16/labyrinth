@@ -22,13 +22,13 @@ public class AIInfoPanel : MonoBehaviour
         //Attach to an Entity;
         bool attachSuccessful = false;
         if (EntityIF = EntityObject.GetComponent<BeAnEntity>()) {
-            Debug.Log("Panel attached to Entity " + EntityIF.EntityName);
+            Debug.Log("AI Info panel attached to Entity " + EntityIF.EntityName);
             Entity = EntityIF.GetSelf();
             EntityIsA = EntityObject.GetComponent<AIKit.IsA>();
             attachSuccessful = true;
         }
         else {
-            Debug.LogError("Panel failed to attach to Entity! Target = " + EntityObject);
+            Debug.LogError("AI Info panel failed to attach to Entity! Target = " + EntityObject);
         }
         if (!attachSuccessful) return;
 
@@ -43,8 +43,13 @@ public class AIInfoPanel : MonoBehaviour
         //Write dynamic info to display
         if (true)
         {
-            //goal
-            GoalText.text = string.Join("\n", Entity.goals.Select(m => m.ToString()).ToArray());
+            //goals
+            Stack<AIKit.Goal> goals = Entity.goals;
+            if (goals.Count > 0)
+                GoalText.text = string.Join("\n", Entity.goals.Select(m => m.ToString()).ToArray());
+            else
+                GoalText.text = "No goals";
+
             //memory
             MemoryText.text = string.Join("\n", Entity.GetMemories().Select(m => m.GetSentence().GetSemantics().ToString()).ToArray());
             //perceptual facts
@@ -52,7 +57,8 @@ public class AIInfoPanel : MonoBehaviour
         }
     }
 
-    public void AddEventToEntity() {
+    public void AddEventToEntity() 
+    {
         if (Entity is null) return;
 
         string givenSentence = NewSentenceField.text;
@@ -92,7 +98,8 @@ public class AIInfoPanel : MonoBehaviour
         }
     }
 
-    public void AddGoalToEntity() {
+    public void AddGoalToEntity() 
+    {
         if (Entity is null) return;
 
         string givengoal = NewGoalField.text;
