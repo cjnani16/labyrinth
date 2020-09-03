@@ -382,23 +382,87 @@ namespace AIKit
 
         public bool isTrue(Sentence s, out string str){
             if (isTrue(s.GetSemantics(), out str)) return true;
-            else {
-                str += "Core sentence failed, trying entailing sentences...\n";
-                List<SemSentence> entailingSentences = GetSentencesThatEntail(s.GetSemantics());
-                foreach (SemSentence eS in entailingSentences) {
-                    str += "Trying entailing sentence: " + eS.ToString() +"\n";
-                    string add;
-                    bool res = isTrue(eS, out add);
-                    str += add;
-                    if (res) {
-                        str += "Entailed sentence true, so this is true! :)\n";
-                        return true;
-                    }
-                }
 
-                str += "Entailing sentences failed!\n";
+            str += "Core sentence failed, trying entailing sentences...\n";
+
+            List<SemSentence> entailingSentences = GetSentencesThatEntail(s.GetSemantics());
+            foreach (SemSentence eS in entailingSentences) {
+                str += "Trying entailing sentence: " + eS.ToString() +"\n";
+                string add;
+                bool res = isTrueR(eS, out add, new List<SemSentence>{s.GetSemantics()});
+                str += add;
+                if (res) {
+                    str += "Entailed sentence true, so this is true! :)\n";
+                    return true;
+                }
+            }
+
+            str += "Entailing sentences failed! Trying implications...\n";
+
+            List<SemSentence> implyingSentences = GetSentencesThatImply(s.GetSemantics());
+            foreach (SemSentence iS in implyingSentences) {
+                str += "Trying implying sentence: " + iS.ToString() +"\n";
+                string add;
+                bool res = isTrueR(iS, out add, new List<SemSentence>{s.GetSemantics()});
+                str += add;
+                if (res) {
+                    str += "Implying sentence true, so this is true! :)\n";
+                    return true;
+                }
+            }
+
+            str += "Implying sentences failed!\n";
+            return false;
+        }  
+
+        public bool isTrueR(SemSentence s, out string str, List<SemSentence> alreadyChecked){
+            //avoid loops
+            if (alreadyChecked.Contains(s)) {
+                str = "";
                 return false;
             }
+
+            if (isTrue(s, out str)) return true;
+
+            str += "Core sentence failed, trying entailing sentences...\n";
+            alreadyChecked.Add(s);
+
+            List<SemSentence> entailingSentences = GetSentencesThatEntail(s);
+            foreach (SemSentence eS in entailingSentences) {
+                //avoidloops
+                if (alreadyChecked.Contains(eS)) continue;
+
+                str += "Trying entailing sentence: " + eS.ToString() +"\n";
+                string add;
+                bool res = isTrueR(eS, out add, alreadyChecked);
+                str += add;
+                if (res) {
+                    str += "Entailed sentence true, so this is true! :)\n";
+                    return true;
+                }
+                alreadyChecked.Add(eS);
+            }
+
+            str += "Entailing sentences failed! Trying implications...\n";
+
+            List<SemSentence> implyingSentences = GetSentencesThatImply(s);
+            foreach (SemSentence iS in implyingSentences) {
+                //avoid reflexive b  loops? what is Sa <-> Sb ? oops
+                if (alreadyChecked.Contains(iS)) continue;
+
+                str += "Trying implying sentence: " + iS.ToString() +"\n";
+                string add;
+                bool res = isTrueR(iS, out add, alreadyChecked);
+                str += add;
+                if (res) {
+                    str += "Implying sentence true, so this is true! :)\n";
+                    return true;
+                }
+                alreadyChecked.Add(iS);
+            }
+
+            str += "Implying sentences failed!\n";
+            return false;
         }    
 
         //GOAP
@@ -413,6 +477,7 @@ namespace AIKit
 
             //AND... put a map from antecedent to consequent (for "drawing conclusions")
             SemSentence newAntecedent = AIKit_Grammar.FillPronouns(rule.consequent, rule.antecedent);
+            newAntecedent.CheckIfFlex();
             Debug.LogError("Pronoun filled antecedent:" + newAntecedent.ToString());
             SemSentence matchingConsequent = AIKit_Grammar.TakePronouns(rule.antecedent, rule.consequent);
             Debug.LogError("Matching consequent:" + matchingConsequent.ToString());
@@ -435,16 +500,65 @@ namespace AIKit
 
         }
 
+        public List<SemSentence> GetWaysTo2(SemSentence goal) {
+            List<SemSentence> allWaysTo = new List<SemSentence>();
+
+            //save originals
+            SemNP subject = goal.np;
+            List<SemNP> objects = goal.vp.objects;
+
+            //for aliasing
+            List<SemNP> originals = new List<SemNP> {objects[0], subject};
+
+            //get entailing sentences
+            List<SemSentence> entailingSentences = GetSentencesThatEntail(goal);
+            List<SemSentence> aliasedEntailingSentences = entailingSentences; //Necessary? .ConvertAll((sentence) => AliasedSentence(sentence, new List<SemNP> {sentence.vp.objects[0], }, originals));
+            aliasedEntailingSentences.Add(goal);
+
+            foreach (SemSentence sentence in aliasedEntailingSentences) {
+                if (waysTo.ContainsKey(sentence)) {
+                    allWaysTo.AddRange(waysTo[sentence]);
+                }
+            }
+
+            return allWaysTo;
+        }
+
+        public List<SemSentence> GetResultsFrom2(SemSentence fact) {
+            List<SemSentence> allResultsFrom = new List<SemSentence>();
+
+            //save originals
+            SemNP subject = fact.np;
+            List<SemNP> objects = fact.vp.objects;
+
+            //for aliasing
+            List<SemNP> originals = new List<SemNP> {objects[0], subject};
+
+            //get entailing sentences
+            List<SemSentence> entailedSentences = GetSentencesEntailedBy(fact);
+            List<SemSentence> aliasedEntailedSentences = entailedSentences; //Necessary? .ConvertAll((sentence) => AliasedSentence(sentence, new List<SemNP> {sentence.vp.objects[0], }, originals));
+            aliasedEntailedSentences.Add(fact);
+
+            foreach (SemSentence sentence in aliasedEntailedSentences) {
+                if (resultsFrom.ContainsKey(sentence)) {
+                    allResultsFrom.AddRange(resultsFrom[sentence]);
+                }
+            }
+
+            return allResultsFrom;
+        }
+
         public List<SemSentence> GetWaysTo(SemSentence goal) {
             Debug.LogWarning("Looking for ways to:\t"+goal.ToString());
             List<SemSentence> allWaysTo = new List<SemSentence>();
+
+            Debug.Log("waysTo Dictionary content:" + string.Join(", ", this.waysTo.Keys));
             
             SemanticWebNode subjNode = this.lexicalMemory.GetOrInsert(goal.np);
             List<SemanticWebNode> objNodes = goal.vp.objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
             
             List<SemNP> subjMonikers = GetHyponymsOf(subjNode);
-            Debug.Log("Hyponyms of "+goal.np.ToString()+": " + string.Join("/", subjMonikers));
-            List<List<SemNP>> objMonikers = goal.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHypernymsOf(node)):objNodes.ConvertAll((node) => GetHyponymsOf(node));
+            List<List<SemNP>> objMonikers = objNodes.ConvertAll((node) => GetHyponymsOf(node));//goal.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHypernymsOf(node)):objNodes.ConvertAll((node) => GetHyponymsOf(node));
 
             //add the og names
             subjMonikers.Add(goal.np);
@@ -452,9 +566,8 @@ namespace AIKit
                 objMonikers[i].Add(goal.vp.objects[i]);
             }
 
-            Debug.Log("subject monikers:" + string.Join("/",subjMonikers));
+            Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
 
-            //Debug.Log("0.The original is named:"+goal.vp.objects[0].ToString());
             foreach (SemNP subjectMoniker in subjMonikers) {
                 //if we only have sentencial objects in our goal just try one sentence with that
                 if (objMonikers.Count == 0) {
@@ -468,11 +581,18 @@ namespace AIKit
                         aliasedGoal.np = subjectMoniker;
                         aliasedGoal.vp.objects[obj_index] = object_i_Moniker;
                         aliasedGoal.CheckIfFlex();
+
+                        Debug.LogError("Checking dict for \t" + aliasedGoal.ToString());
+
                         if (this.waysTo.ContainsKey(aliasedGoal)) {
-                            Debug.LogWarning("1.Replacing all occurrences of "+object_i_Moniker.ToString()+" with "+goal.vp.objects[obj_index].ToString()+"in the sentence: "+aliasedGoal.ToString());
-                            allWaysTo.AddRange(AliasedWaysTo(aliasedGoal, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { goal.vp.objects[obj_index], goal.np }));
-                        }else{
-                            Debug.LogError("No rules to\t"+aliasedGoal.ToString());
+                            //Debug.LogWarning("1.Replacing all occurrences of "+object_i_Moniker.ToString()+" with "+goal.vp.objects[obj_index].ToString()+"in the sentence: "+aliasedGoal.ToString());
+                            List<SemSentence> results = AliasedWaysTo(aliasedGoal, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { goal.vp.objects[obj_index], goal.np });
+                            allWaysTo.AddRange(results);
+                            Debug.Log("Added " + results.Count + " waysTo.");
+                        }
+                        else
+                        {
+                            //Debug.LogError("No rules to\t"+aliasedGoal.ToString());
                         }
 
                         //if we're talking about ourselves, then one way to make this true is to just DO something. In which case we only need can___
@@ -481,10 +601,13 @@ namespace AIKit
                             canAliasedGoal.vp.verb = AIKit_Grammar.EntryFor("can" + aliasedGoal.vp.verb.ToString());
                             Debug.LogWarning("Since subject is self, Also checking for ways to "+canAliasedGoal.ToString());
                             if (this.waysTo.ContainsKey(canAliasedGoal)) {
-                                Debug.LogError("Nevermind, found one with can: \t"+canAliasedGoal.ToString());
-                                allWaysTo.AddRange(AliasedWaysTo(canAliasedGoal, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { goal.vp.objects[obj_index], goal.np }));
+                                List<SemSentence> result = AliasedWaysTo(canAliasedGoal, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { goal.vp.objects[obj_index], goal.np });
+                                Debug.LogError("Found " + result.Count + " waysTo with can: \t"+canAliasedGoal.ToString());
+                                allWaysTo.AddRange(result);
                             }
                         }
+
+                        Debug.Log("Now have " + allWaysTo.Count + " waysTo.");
                     }
                 }
             }
@@ -695,6 +818,10 @@ namespace AIKit
             return entailingSentences;
         }
 
+        public List<SemSentence> GetSentencesThatImply(SemSentence original) {
+            return GetWaysTo(original);
+        }
+
         public List<SemSentence> GetSentencesEntailedBy(SemSentence original) {
             List<SemSentence> entailedSentences = new List<SemSentence>();
 
@@ -833,15 +960,26 @@ namespace AIKit
 
         public List<SemSentence> GetResultsFrom(SemSentence fact) {
             List<SemSentence> allResultsFrom = new List<SemSentence>();
+
+            Debug.Log("resultsFrom Dictionary content:" + string.Join(", ", this.resultsFrom));
             
             SemanticWebNode subjNode = this.lexicalMemory.GetOrInsert(fact.np);
             List<SemanticWebNode> objNodes = fact.vp.objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
             
             List<SemNP> subjMonikers = GetHypernymsOf(subjNode);
-            List<List<SemNP>> objMonikers = fact.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHyponymsOf(node)):objNodes.ConvertAll((node) => GetHypernymsOf(node));
+            List<List<SemNP>> objMonikers = objNodes.ConvertAll((node) => GetHypernymsOf(node));//fact.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHyponymsOf(node)):objNodes.ConvertAll((node) => GetHypernymsOf(node));
+
+            //add ogs
+            subjMonikers.Add(fact.np);
+            for (int i = 0; i < objMonikers.Count; i++) {
+                objMonikers[i].Add(fact.vp.objects[i]);
+            }
+
+            Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
 
             foreach (SemNP subjectMoniker in subjMonikers) {
                 //if we only have sentencial objects in our goal just try one sentence with that
+                //TODO: intransitive covered here too?
                 if (objMonikers.Count == 0) {
                     if (this.resultsFrom.ContainsKey(fact))
                         allResultsFrom.AddRange(this.resultsFrom[fact]);
@@ -853,9 +991,15 @@ namespace AIKit
                         aliasedFact.np = subjectMoniker;
                         aliasedFact.vp.objects[obj_index] = object_i_Moniker;
                         aliasedFact.CheckIfFlex();
+
+                        Debug.Log("Checking dict for \t" + aliasedFact.ToString());
+
                         if (this.resultsFrom.ContainsKey(aliasedFact)) {
-                            allResultsFrom.AddRange(AliasedResultsFrom(aliasedFact, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { fact.vp.objects[obj_index], fact.np }));
+                            List<SemSentence> results = AliasedResultsFrom(aliasedFact, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { fact.vp.objects[obj_index], fact.np });
+                            allResultsFrom.AddRange(results);
+                            Debug.Log("Added " + results.Count + " results.");
                         }
+                        Debug.Log("Now have " + allResultsFrom.Count + " results.");
                     }
                 }
             }

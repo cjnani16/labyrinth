@@ -57,11 +57,16 @@ namespace AIKit
         
         public override bool Equals(object obj) {
             if (obj is null || obj as SemNP is null) return false;
+            //Debug.LogWarning("1");
             SemNP other = obj as SemNP;
-            if (this.flex || other.flex) return this.noun == other.noun;
-            else {
-                return this.ToString() == other.ToString();
-            }
+            //Debug.LogWarning("2");
+            if (other.noun is null || this.noun is null) return false;
+            //Debug.LogWarning("3");
+            if (this.noun != other.noun) return false;
+            //Debug.LogWarning("4");
+            if ((other.adjectives is null) != (this.adjectives is null)) return false;
+            //Debug.LogWarning("5");
+            return Helper.ListFlexMatch(adjectives, other.adjectives);
         }
 
         public static bool operator ==(SemNP a, SemNP b) {
@@ -104,6 +109,30 @@ namespace AIKit
             s += "}";
             return s;
         }
+
+        public override bool Equals(object obj) {
+            if (obj is null || obj as SemVP is null) return false;
+            
+            SemVP other = obj as SemVP;
+
+            if (other.verb is null || this.verb is null) return false;
+
+            if (this.verb != other.verb) return false;
+
+            if ((other.objects is null) != (this.objects is null)) return false;
+            return Helper.ListFlexMatch(objects, other.objects);
+        }
+
+        public static bool operator ==(SemVP a, SemVP b) {
+            return (a.Equals(b));
+        }
+        public static bool operator !=(SemVP a, SemVP b) {
+            return (a.Equals(b));
+        }
+
+        public override int GetHashCode() {
+            return this.ToString().GetHashCode();
+        }
     }
     public class SemPP {
         public SemPP(){
@@ -120,6 +149,7 @@ namespace AIKit
         public override string ToString() {
             return preposition.ToString() + " => {" + np.ToString() + "}";
         }
+        
     }
     public class SemSentence {
         //{the little kid}
@@ -128,7 +158,7 @@ namespace AIKit
         //{excitedly throw <-> a ball} }
         public SemVP vp;
 
-        bool flex;
+        protected bool flex;
 
         virtual public bool isImplication() {
             return false;
@@ -154,7 +184,7 @@ namespace AIKit
             this.CheckIfFlex();
         }
 
-        public bool CheckIfFlex() {
+        public virtual bool CheckIfFlex() {
             this.flex = false;
 
             //check NPs
@@ -192,14 +222,26 @@ namespace AIKit
         }
 
         public static bool operator ==(SemSentence a, SemSentence b) {
+            //if they're implications, then do something different
+            SemImplication ai = a as SemImplication;
+            SemImplication bi = b as SemImplication;
+            if (!(ai is null) && !(bi is null)) {
+                return ((ai.consequent == bi.consequent) && (ai.antecedent == bi.antecedent));
+            }
+            //if one is and one isn't then they are inequal
+            else if ((ai is null) != (bi is null)) {
+                return false;
+            }
+            //else continue, neither is an implication.
+
             //Debug.Log("Equals operator between "+a.ToString() +" and  "+b.ToString());
             try {
-                if (!Helper.ListFlexMatch(b.np.adjectives, a.np.adjectives) || a.np.noun != b.np.noun) {
+                if (a.np != b.np) {
                     //Debug.Log("MAN WTF>WEWR" + a.np.noun.ToString() + b.np.noun.ToString());
                     //Debug.Log("\tfalse--subj!");
                     return false;
                 }
-                if (!Helper.ListFlexMatch(a.vp.objects, b.vp.objects) || a.vp.verb != b.vp.verb) {
+                if (a.vp != b.vp) {
                     //Debug.Log("\tfalse--vp!" + (!Helper.ListFlexMatch(a.vp.objects, b.vp.objects)) + (a.vp.verb != b.vp.verb));
                     return false;
                 }
@@ -248,10 +290,27 @@ namespace AIKit
             this.consequent = null;
         }
         public override string ToString() {
-            return (this.antecedent is null ? "{NULL}" : antecedent.ToString()) + " implies " + (this.consequent is null ? "{NULL}" : consequent.ToString());
+            string str = (this.antecedent is null ? "{NULL}" : antecedent.ToString()) + " implies " + (this.consequent is null ? "{NULL}" : consequent.ToString());
+            return this.flex ? ("**"+ str + "**") : str;
         }
         public override bool isImplication() {
             return true;
+        }
+        public override bool CheckIfFlex() {
+            this.flex = false;
+
+            //check NPs
+            if (!(this.antecedent is null)) {
+                if (this.antecedent.CheckIfFlex())
+                    this.flex = true;
+            }
+
+            if (!(this.consequent is null)) {
+                if (this.consequent.CheckIfFlex())
+                    this.flex = true;
+            }
+
+            return this.flex;
         }
     }
    

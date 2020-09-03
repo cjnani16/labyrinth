@@ -102,4 +102,36 @@ public class KnowledgePanel : MonoBehaviour
         ConsoleText.text = Entity.knowledgeModule.isTrue(sentenceParsed, out output) ? "This is true.\n" : "This is false.\n";
         ConsoleText.text += output;
     }
+
+    public void GetWaysTo() {
+        if (Entity is null) return;
+
+        string givenSentence = NewSentenceField.text;
+        //Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
+        AIKit.Sentence sentenceParsed = AIKit.AIKit_Grammar.Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
+        string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.GetSemantics().ToString();
+        //Debug.Log(s);
+
+        List<AIKit.SemSentence> returnedSentences = Entity.knowledgeModule.GetWaysTo(sentenceParsed.GetSemantics());
+        if (returnedSentences.Count > 0)
+            ConsoleText.text = string.Join("\n", returnedSentences.Select(m => m.ToString()).ToArray());
+        else
+            ConsoleText.text = "No ways to do this.";
+    }
+
+    public void GetResultsFrom() {
+        if (Entity is null) return;
+
+        string givenSentence = NewSentenceField.text;
+        //Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
+        AIKit.Sentence sentenceParsed = AIKit.AIKit_Grammar.Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
+        string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.GetSemantics().ToString();
+        //Debug.Log(s);
+
+        List<AIKit.SemSentence> returnedSentences = Entity.knowledgeModule.GetResultsFrom(sentenceParsed.GetSemantics());
+        if (returnedSentences.Count > 0)
+            ConsoleText.text = string.Join("\n", returnedSentences.Select(m => m.ToString()).ToArray());
+        else
+            ConsoleText.text = "No results from this.";
+    }
 }
