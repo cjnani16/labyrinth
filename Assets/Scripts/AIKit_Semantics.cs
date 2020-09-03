@@ -16,7 +16,6 @@ namespace AIKit
             this.adjectives = new List<LexicalEntry>();
             this.noun = null;
             this.pp = null;
-            this.flex = false;
         }
 
         public SemNP(SemNP original) {
@@ -24,7 +23,6 @@ namespace AIKit
             this.adjectives = new List<LexicalEntry>(original.adjectives);
             this.noun = new LexicalEntry(original.noun);
             this.pp = (original.pp is null) ? null : new SemPP(original.pp);
-            this.flex = original.flex;
         }
         //the
         public LexicalEntry determiner;
@@ -33,13 +31,6 @@ namespace AIKit
         //house
         public LexicalEntry noun;
         public SemPP pp;
-        bool flex;
-
-        public bool CheckIfFlex() {
-            this.flex = false;
-            if (!(this.noun as FlexibleLexicalEntry is null)) this.flex = true;
-            return this.flex;
-        }
 
         public override string ToString() {
             string s = "( ";
@@ -52,7 +43,7 @@ namespace AIKit
             s += " )";
             if (!(pp is null)) s += "<-" + pp.ToString();
 
-            return this.flex?("**"+s+"**"):s;
+            return s;
         }
         
         public override bool Equals(object obj) {
@@ -158,8 +149,6 @@ namespace AIKit
         //{excitedly throw <-> a ball} }
         public SemVP vp;
 
-        protected bool flex;
-
         virtual public bool isImplication() {
             return false;
         }
@@ -167,7 +156,6 @@ namespace AIKit
         public SemSentence() {
             this.np = null;
             this.vp = null;
-            this.flex = false;
         }
 
         public SemSentence(SemNP subj, LexicalEntry verb, SemNP obj) {
@@ -175,37 +163,16 @@ namespace AIKit
             this.vp = new SemVP();
             this.vp.verb = verb;
             this.vp.objects.Add(new SemNP(obj));
-            this.CheckIfFlex();
         }
 
         public SemSentence(SemSentence original) {
             this.np = new SemNP(original.np);
             this.vp = new SemVP(original.vp);
-            this.CheckIfFlex();
-        }
-
-        public virtual bool CheckIfFlex() {
-            this.flex = false;
-
-            //check NPs
-            if (!(this.np is null)) {
-                if (this.np.CheckIfFlex())
-                    this.flex = true;
-            }
-
-            if (!(this.vp is null)) {
-                foreach (SemNP obj in this.vp.objects) {
-                    if (obj.CheckIfFlex())
-                        this.flex = true;
-                }
-            }
-
-            return this.flex;
         }
 
         public override string ToString() {
             string s = "S[" + ((np is null)?"NULL-NP":np.ToString()) + "}--{" + ((vp is null)?"NULL-VP":vp.ToString()) + "].";
-            return this.flex?("**"+s+"**"):s;
+            return s;
         }
 
         public override bool Equals(object obj)
@@ -226,10 +193,20 @@ namespace AIKit
             SemImplication ai = a as SemImplication;
             SemImplication bi = b as SemImplication;
             if (!(ai is null) && !(bi is null)) {
-                return ((ai.consequent == bi.consequent) && (ai.antecedent == bi.antecedent));
+                Debug.Log("\tboth implications!");
+                if (ai.consequent != bi.consequent) {
+                    Debug.Log("false-- consequent mismatch");
+                    return false;
+                }
+                if (ai.antecedent != bi.antecedent) {
+                    Debug.Log("false-- antecedent mismatch");
+                    return false;
+                }
+                return true;
             }
             //if one is and one isn't then they are inequal
             else if ((ai is null) != (bi is null)) {
+                Debug.Log("\tfalse--implicaiton vs non-implication!");
                 return false;
             }
             //else continue, neither is an implication.
@@ -238,32 +215,19 @@ namespace AIKit
             try {
                 if (a.np != b.np) {
                     //Debug.Log("MAN WTF>WEWR" + a.np.noun.ToString() + b.np.noun.ToString());
-                    //Debug.Log("\tfalse--subj!");
+                    Debug.Log("\tfalse--subj!");
                     return false;
                 }
                 if (a.vp != b.vp) {
-                    //Debug.Log("\tfalse--vp!" + (!Helper.ListFlexMatch(a.vp.objects, b.vp.objects)) + (a.vp.verb != b.vp.verb));
+                    Debug.Log("\tfalse--vp! objects match? " + (Helper.ListFlexMatch(a.vp.objects, b.vp.objects)) + " verbs match? " + (a.vp.verb == b.vp.verb));
                     return false;
                 }
-                /*
-                //do this manually bc flexes get a pass
-                if (a.vp.objects.Count != b.vp.objects.Count)
-
-                foreach (SemNP obj in a.vp.objects) {
-                    if (!(b.vp.objects.Contains(obj))) {
-                        Debug.LogError(obj.ToString()+" not found in "+b.ToString());
-                        return false;
-                    }
-                }
-                if (a.vp.objects[0] != b.vp.objects[0]) return false; //TODO: I should match the whole list... but how to handle flexes?
-                */
-                //Debug.Log("\ttrue!");
                 return true;
             } catch (System.NullReferenceException e) {
                 Debug.LogError(e);
                 if (!(a is null)) Debug.LogError("^ Tried to compare "+a.ToString());
                 if (!(b is null)) Debug.LogError("^ Tried to compare "+b.ToString());
-                Debug.Log("\tfalse!");
+                Debug.Log("\tfalse -- null error!");
                 return false;
             }
         }
@@ -276,7 +240,9 @@ namespace AIKit
         public override int GetHashCode()
         {
             //Debug.LogWarning("Hashed " +this.ToString()+" to "+this.ToString().GetHashCode());
-            return this.ToString().GetHashCode();
+            int hash = this.ToString().GetHashCode();
+            Debug.Log("SemSentence " + this.ToString() + " hashed to " + hash);
+            return hash;
         }
     }
 
@@ -291,26 +257,10 @@ namespace AIKit
         }
         public override string ToString() {
             string str = (this.antecedent is null ? "{NULL}" : antecedent.ToString()) + " implies " + (this.consequent is null ? "{NULL}" : consequent.ToString());
-            return this.flex ? ("**"+ str + "**") : str;
+            return str;
         }
         public override bool isImplication() {
             return true;
-        }
-        public override bool CheckIfFlex() {
-            this.flex = false;
-
-            //check NPs
-            if (!(this.antecedent is null)) {
-                if (this.antecedent.CheckIfFlex())
-                    this.flex = true;
-            }
-
-            if (!(this.consequent is null)) {
-                if (this.consequent.CheckIfFlex())
-                    this.flex = true;
-            }
-
-            return this.flex;
         }
     }
    

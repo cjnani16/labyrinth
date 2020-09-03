@@ -56,7 +56,6 @@ namespace AIKit
                 np.noun = noun;
                 if (noun.wordClass == WordClass.N)
                     np.determiner = AIKit_Grammar.dictionary["a"];
-                np.CheckIfFlex();
                 NPs.Add(np);
             }
             return NPs;

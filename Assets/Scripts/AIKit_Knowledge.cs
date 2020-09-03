@@ -477,7 +477,6 @@ namespace AIKit
 
             //AND... put a map from antecedent to consequent (for "drawing conclusions")
             SemSentence newAntecedent = AIKit_Grammar.FillPronouns(rule.consequent, rule.antecedent);
-            newAntecedent.CheckIfFlex();
             Debug.LogError("Pronoun filled antecedent:" + newAntecedent.ToString());
             SemSentence matchingConsequent = AIKit_Grammar.TakePronouns(rule.antecedent, rule.consequent);
             Debug.LogError("Matching consequent:" + matchingConsequent.ToString());
@@ -580,7 +579,6 @@ namespace AIKit
                         SemSentence aliasedGoal = new SemSentence(goal);
                         aliasedGoal.np = subjectMoniker;
                         aliasedGoal.vp.objects[obj_index] = object_i_Moniker;
-                        aliasedGoal.CheckIfFlex();
 
                         Debug.LogError("Checking dict for \t" + aliasedGoal.ToString());
 
@@ -634,7 +632,7 @@ namespace AIKit
                     }
                 }
             }
-            originalSentence.CheckIfFlex();
+
             return originalSentence;
         }
 
@@ -721,7 +719,6 @@ namespace AIKit
             //add "anything" to the list
             SemNP anything = new SemNP();
             anything.noun = AIKit_Grammar.EntryFor("anything");
-            anything.CheckIfFlex();
             hyponyms.Add(lexicalMemory.GetOrInsert(anything));
 
             //add "any" ___ to the list, if this is a noun (we do this instead of using an "is" edge.)
@@ -768,7 +765,6 @@ namespace AIKit
             //add "anything" to the list
             SemNP anything = new SemNP();
             anything.noun = AIKit_Grammar.EntryFor("anything");
-            anything.CheckIfFlex();
             hyponyms.Add(anything);
 
             //add "any" ___ to the list, if this is a noun (we do this instead of using an "is" edge.)
@@ -990,7 +986,6 @@ namespace AIKit
                         SemSentence aliasedFact = new SemSentence(fact);
                         aliasedFact.np = subjectMoniker;
                         aliasedFact.vp.objects[obj_index] = object_i_Moniker;
-                        aliasedFact.CheckIfFlex();
 
                         Debug.Log("Checking dict for \t" + aliasedFact.ToString());
 
@@ -1025,7 +1020,6 @@ namespace AIKit
                         }
                     }
                 }
-                method.CheckIfFlex();
             }
             return resultsFrom;
         }
@@ -1243,7 +1237,6 @@ namespace AIKit
             {
                 SemNP anything = new SemNP();
                 anything.noun = AIKit_Grammar.EntryFor("anything");
-                anything.CheckIfFlex();
                 this.anythingNode = this.GetOrInsert(anything);
             }
 
@@ -1295,7 +1288,6 @@ namespace AIKit
                         why.vp = new SemVP();
                         why.vp.verb = AIKit_Grammar.EntryFor("is");
                         why.vp.objects.Add(something);
-                        why.CheckIfFlex();
 
                         //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
 
@@ -1316,7 +1308,6 @@ namespace AIKit
                         why.vp = new SemVP();
                         why.vp.verb = AIKit_Grammar.EntryFor("is");
                         why.vp.objects.Add(np);
-                        why.CheckIfFlex();
 
                         //Debug.LogWarning("should add edge indicating that "+anything.ToString()+" is "+np.ToString()+".");
 
@@ -1333,7 +1324,6 @@ namespace AIKit
                     Debug.LogWarning("should add edge indicating that anything is "+np.ToString()+".");
                     SemNP anything = new SemNP();
                     anything.noun = AIKit_Grammar.EntryFor("anything");
-                    anything.CheckIfFlex();
                     SemanticWebNode anythingNode = this.GetAnythingNode();
 
                     //our explanation: "everything is some thing"
@@ -1343,7 +1333,6 @@ namespace AIKit
                     why.vp.verb = AIKit_Grammar.EntryFor("is");
                     why.vp.objects.Add(new SemNP());
                     why.vp.objects[0].noun = AIKit_Grammar.EntryFor("everything");
-                    why.CheckIfFlex();
 
                     anythingNode.AddEdgeTo(why.vp.verb, newNode, new Sentence(why), 0.5f);
                 }*/
@@ -1353,7 +1342,6 @@ namespace AIKit
                     //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is something.");
                     SemNP something = new SemNP();
                     something.noun = AIKit_Grammar.EntryFor("something");
-                    something.CheckIfFlex();
                     SemanticWebNode somethingNode = this.GetOrInsert(something);
 
                     //our explanation: "everything is some thing"
@@ -1363,7 +1351,6 @@ namespace AIKit
                     why.vp = new SemVP();
                     why.vp.verb = AIKit_Grammar.EntryFor("is");
                     why.vp.objects.Add(something);
-                    why.CheckIfFlex();
 
                     newNode.AddEdgeTo(why.vp.verb, somethingNode, new Sentence(why), 0.5f);
                 }

@@ -74,7 +74,7 @@ namespace AIKit
         }
 
         public override string ToString() {
-            return type==0? "["+this.word+"/"+generativeWordClass.ToString()+"]" : "["+this.word+"/"+wordClass.ToString()+"]";
+            return this.word;//type==0? "["+this.word+"/"+generativeWordClass.ToString()+"]" : "["+this.word+"/"+wordClass.ToString()+"]";
         }
 
         public override bool Equals(object o) {
@@ -732,7 +732,6 @@ namespace AIKit
                         //Debug.Log("Null sem before: " + w.ToString());
                         np = new SemNP();
                         np.noun = w;
-                        //np.flex = true;
                         sem = np;
                         break;
                     }
@@ -752,7 +751,6 @@ namespace AIKit
                         np = new SemNP();
                         np.noun = w;
                         np.pp = pp;
-                        //np.flex = true;
                         sem = np;
                         break;
                     }
@@ -764,8 +762,6 @@ namespace AIKit
                         s.vp = vp;
                         s.np = new SemNP();
                         s.np.noun = w;
-                        //s.np.flex = true;
-                        //s.flex = true;
                         sem = s;
                     }
 
@@ -898,7 +894,6 @@ namespace AIKit
                 //Debug.Log("Rebuilding sentence "+prev_s.ToString()+".");
                 if (!(sem as SemNP is null)) {
                     prev_s.np = sem as SemNP;
-                    //if (prev_s.np.flex == true) prev_s.flex = true;
                 }
                 else if (!(sem as SemPP is null)) {
                     //don't worry abt overwrite the old np becuse it's part of a pp now
@@ -909,9 +904,6 @@ namespace AIKit
                     //we will completely replace sentence bc its np became a vp
                     prev_s.np = null;
                     prev_s.vp = sem as SemVP;
-                    //foreach (SemNP obj in prev_s.vp.objects) {
-                    //    if (obj.flex) prev_s.flex = true;
-                    //}
                 }
 
                 sem = prev_s;
@@ -928,7 +920,6 @@ namespace AIKit
                     if (!(np is null)) {
                         s = new SemSentence();
                         s.np = np;
-                        //if (s.np.flex == true) s.flex = true;
                     } else if (!(pp is null)) {
                         s = new SemSentence();
                         s.np = new SemNP();
@@ -998,7 +989,6 @@ namespace AIKit
                 Debug.LogError("Semantic Collapse Failed! Last word:"+les[les.Count-1]);
             } else {
                 //Debug.Log("Semantic collapse successful:"+sem_s.ToString());
-                sem_s.CheckIfFlex();
             }
 
             if (seen.Count==1 && seen[0]==WordClass.S) {
@@ -1036,7 +1026,6 @@ namespace AIKit
             //check if subj is pronoun
             if (filled.np.noun.generativeWordClass == GenerativeWordClass.Deictic) {
                 filled.np = ReplaceVia(filled.np, context.np);
-                //if (filled.np.flex) filled.flex = true;
             }
 
             //check if obj is pronoun
@@ -1046,11 +1035,9 @@ namespace AIKit
                         filled.vp.objects[i] = ReplaceVia(filled.vp.objects[i], context.vp.objects[i]);
                     else
                         filled.vp.objects[i] = ReplaceVia(filled.vp.objects[i], context.vp.objects[context.vp.objects.Count - 1]);
-                    //if (filled.vp.objects[i].flex) filled.flex = true;
                 }
             }
 
-            filled.CheckIfFlex();
             return filled;
         }
 
@@ -1060,7 +1047,6 @@ namespace AIKit
             //check if subj is pronoun
             if (context.np.noun.generativeWordClass == GenerativeWordClass.Deictic) {
                 filled.np = context.np;
-                //if (filled.np.flex) filled.flex = true;
             }
 
             //check if obj is pronoun
@@ -1070,11 +1056,9 @@ namespace AIKit
                         filled.vp.objects[i] = context.vp.objects[i];
                     else
                         filled.vp.objects[filled.vp.objects.Count - 1] = context.vp.objects[i];
-                    //if (filled.vp.objects[i].flex) filled.flex = true;
                 }
             }
 
-            filled.CheckIfFlex();
             return filled;
         }
 

@@ -69,7 +69,6 @@ namespace AIKit {
                 sentence.vp = new SemVP();
                 sentence.vp.verb = AIKit_Grammar.dictionary["see"];
                 sentence.vp.objects.Add(obj);
-                sentence.CheckIfFlex();
 
                 this.knowledgeModule.perceptualFacts.Add(sentence);
                 this.addMemory(new Sentence(sentence));
