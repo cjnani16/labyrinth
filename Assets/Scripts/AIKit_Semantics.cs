@@ -64,7 +64,7 @@ namespace AIKit
             return (a.Equals(b));
         }
         public static bool operator !=(SemNP a, SemNP b) {
-            return (a.Equals(b));
+            return !(a.Equals(b));
         }
         //note: this doesn't work with flex like equals
         public override int GetHashCode() {
@@ -118,7 +118,7 @@ namespace AIKit
             return (a.Equals(b));
         }
         public static bool operator !=(SemVP a, SemVP b) {
-            return (a.Equals(b));
+            return !(a.Equals(b));
         }
 
         public override int GetHashCode() {
@@ -189,6 +189,8 @@ namespace AIKit
         }
 
         public static bool operator ==(SemSentence a, SemSentence b) {
+            Debug.Log("Comparing" + a.ToString() + " and " + b.ToString());
+
             //if they're implications, then do something different
             SemImplication ai = a as SemImplication;
             SemImplication bi = b as SemImplication;
@@ -216,6 +218,7 @@ namespace AIKit
                 if (a.np != b.np) {
                     //Debug.Log("MAN WTF>WEWR" + a.np.noun.ToString() + b.np.noun.ToString());
                     Debug.Log("\tfalse--subj!");
+                    Debug.Log("subj1 = " + a.np + ", subj2 = " + b.np);
                     return false;
                 }
                 if (a.vp != b.vp) {
