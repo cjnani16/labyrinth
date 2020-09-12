@@ -86,6 +86,11 @@ namespace AIKit
                             subjectNode.AddEdgeTo(vp.verb, objNode, s, salience);
                         }
                     }
+                    //intransitive verb vp's have no objects!
+                    if (vp.objects.Count == 0 && vp.sentenceObjects.Count == 0)
+                    {
+                        subjectNode.AddEdgeTo(vp.verb, null, s, salience);
+                    }
                 }
             } 
         }
@@ -192,7 +197,7 @@ namespace AIKit
 
             //possibleTos.AddRange(GetHyponymNodesOf(to));
             //possibleTos.RemoveAll((node) => node.some);
-            possibleTos.Add(to);
+            if (!(to is null)) possibleTos.Add(to);
 
             //don't just check for one connection: weigh the yeses and nos!
             foreach(SemanticWebNode f in possibleFroms) {
@@ -230,9 +235,43 @@ namespace AIKit
                     }
                     console += "Fail.\n";
                 }
+
+                //if this is intransitive, we don't have possibleTos. Do a different kind of polling
+                if (possibleTos.Count == 0)
+                {
+                    string antiVerbS = verb.ToString().StartsWith("no") ? verb.ToString().Substring(2) : "no" + verb.ToString();
+                    LexicalEntry antiVerb = AIKit_Grammar.EntryFor(antiVerbS);
+
+                    float recentNo = 0;
+                    int nocount = 0;
+                    foreach (SemanticWebEdge e in f.GetEdges(antiVerbS))
+                    {
+                        nocount++;
+                        recentNo += Mathf.Exp(GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now().val() - e.why.utterance.val());
+                    }
+                    Debug.Log("\tDeconfirmed x" + nocount + ": " + f.GetString() + " " + antiVerb.ToString());
+
+                    float recentYes = 0;
+                    int yescount = 0;
+                    foreach (SemanticWebEdge e in f.GetEdges(verb.ToString()))
+                    {
+                        yescount++;
+                        recentYes += Mathf.Exp(GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now().val() - e.why.utterance.val());
+                    }
+                    Debug.Log("\tConfirmed x" + yescount + ": " + f.GetString() + " " + verb.ToString());
+
+                    console += f.GetString() + " " + verb.ToString() + "? " + recentYes + " for, " + recentNo + " against.\n";
+                    if ((recentYes - recentNo) > 0)
+                    {
+                        console += "True!\n";
+                        return true;
+                    }
+                    console += "Fail.\n";
+                }
             }
 
-            Debug.Log("\tCould not prove: "+from.GetString()+" "+verb.ToString()+" "+to.GetString());
+
+            Debug.Log("\tCould not prove: "+from.GetString()+" "+verb.ToString()+" "+ ((to is null) ? "" : to.GetString()));
             return false;
         }
 
@@ -263,8 +302,7 @@ namespace AIKit
                         singularBranchObject.determiner = AIKit_Grammar.EntryFor("a");
                         foreach(SemanticWebNode matchingObjectNode in lexicalMemory.NodesWithAlias(singularBranchObject)) {
                             //TODO: allow ANY of the multiple edges with this verb.
-                            string addtl;
-                            bool res = DoNodesConnect(rootNode, matchingObjectNode, branch.verb, out addtl);
+                            bool res = DoNodesConnect(rootNode, matchingObjectNode, branch.verb, out string addtl);
                             console += addtl;
                             if (res) {
                                 console+="Found a true example for: " + matchingObjectNode.GetString() + ".\n";
@@ -280,8 +318,7 @@ namespace AIKit
                         SemNP singularBranchObject2 = new SemNP(branchObject);
                         singularBranchObject2.determiner = AIKit_Grammar.EntryFor("a");
                         foreach(SemanticWebNode matchingObjectNode in lexicalMemory.NodesWithAlias(singularBranchObject2)) {
-                            string addtl;
-                            bool res = DoNodesConnect(rootNode, matchingObjectNode, branch.verb, out addtl);
+                            bool res = DoNodesConnect(rootNode, matchingObjectNode, branch.verb, out string addtl);
                             console += addtl;
                             if (!res) {
                                 console+="Found a false example for: " + matchingObjectNode.GetString() + ".\n";
@@ -295,6 +332,12 @@ namespace AIKit
                         Debug.LogError("Broken Logic Class on object");
                         return false;
                 }
+
+                //if this is intransitive we don't need to check branch objects.
+                console += "Intransitive verb! (no objects) Just checking for edge existence\n";
+                bool ret = DoNodesConnect(rootNode, null, branch.verb, out string a); //No object node!
+                console += a;
+                return ret;
             }
 
             foreach (SemSentence branchObject in branch.sentenceObjects) {
@@ -798,16 +841,32 @@ namespace AIKit
                     
 
             foreach (SemNP current_subject in entailingSubjects) {
-                foreach (SemNP current_object in entailingObjects[0]) {
-                    if (current_subject == subject && current_object == objects[0]) continue; //no need to add og sentence?
+                //no objects for intransitive verbs
+                if (entailingObjects.Count == 0)
+                {
+                    if (current_subject == subject) continue; //no need to add og sentence?
 
                     SemSentence entailingSentence = new SemSentence();
                     entailingSentence.np = current_subject;
                     entailingSentence.vp = new SemVP();
                     entailingSentence.vp.verb = original.vp.verb;
-                    entailingSentence.vp.objects.Add(current_object);
 
                     entailingSentences.Add(entailingSentence);
+                }
+                else
+                {
+                    foreach (SemNP current_object in entailingObjects[0])
+                    {
+                        if (current_subject == subject && current_object == objects[0]) continue; //no need to add og sentence?
+
+                        SemSentence entailingSentence = new SemSentence();
+                        entailingSentence.np = current_subject;
+                        entailingSentence.vp = new SemVP();
+                        entailingSentence.vp.verb = original.vp.verb;
+                        entailingSentence.vp.objects.Add(current_object);
+
+                        entailingSentences.Add(entailingSentence);
+                    }
                 }
             }
 
@@ -837,16 +896,32 @@ namespace AIKit
 
             //try EVERY combination of entailing subjects and objects
             foreach (SemNP current_subject in entailedSubjects) {
-                foreach (SemNP current_object in entailedObjects[0]) {
-                    if (current_subject == subject && current_object == objects[0]) continue; //no need to add og sentence?
+                //no objects for intransitive verbs.
+                if (entailedObjects.Count == 0)
+                {
+                    if (current_subject == subject) continue; //no need to add og sentence?
 
                     SemSentence entailedSentence = new SemSentence();
                     entailedSentence.np = current_subject;
                     entailedSentence.vp = new SemVP();
                     entailedSentence.vp.verb = original.vp.verb;
-                    entailedSentence.vp.objects.Add(current_object);
 
                     entailedSentences.Add(entailedSentence);
+                }
+                else
+                {
+                    foreach (SemNP current_object in entailedObjects[0])
+                    {
+                        if (current_subject == subject && current_object == objects[0]) continue; //no need to add og sentence?
+
+                        SemSentence entailedSentence = new SemSentence();
+                        entailedSentence.np = current_subject;
+                        entailedSentence.vp = new SemVP();
+                        entailedSentence.vp.verb = original.vp.verb;
+                        entailedSentence.vp.objects.Add(current_object);
+
+                        entailedSentences.Add(entailedSentence);
+                    }
                 }
             }
             
@@ -1081,14 +1156,20 @@ namespace AIKit
         }
 
         public List<SemanticWebNode> TraverseEdge(LexicalEntry s) {
-            if (this.outgoingEdges.ContainsKey(s) && !(this.outgoingEdges[s] is null))
-            return this.outgoingEdges[s].ConvertAll((e) => e.to).Distinct().ToList(); //Edges should be able to be duplicates of the same word! I should be "is" multiple things....
-            else return new List<SemanticWebNode> ();
+            List<SemanticWebNode> returnedNodes = new List<SemanticWebNode>();
+            if (s.wordClass == WordClass.Vtr && this.outgoingEdges.ContainsKey(s) && !(this.outgoingEdges[s] is null))
+            {
+                returnedNodes = this.outgoingEdges[s].ConvertAll((e) => e.to).Distinct().ToList();
+            }
+            return returnedNodes;
         }
         public List<SemanticWebNode> TraverseEdgeRev(LexicalEntry s) {
-            if (this.incomingEdges.ContainsKey(s) &&!(this.incomingEdges[s] is null))
-            return this.incomingEdges[s].ConvertAll((e) => e.from).Distinct().ToList();
-            else return new List<SemanticWebNode> ();
+            List<SemanticWebNode> returnedNodes = new List<SemanticWebNode>();
+            if (s.wordClass == WordClass.Vtr && this.incomingEdges.ContainsKey(s) &&!(this.incomingEdges[s] is null))
+            {
+                returnedNodes = this.incomingEdges[s].ConvertAll((e) => e.from).Distinct().ToList();
+            }
+            return returnedNodes;
         }
         public void AddEdgeTo(LexicalEntry word, SemanticWebNode to, Sentence s, float salience) {
             SemanticWebEdge e = new SemanticWebEdge(this, word, to, s, salience);
@@ -1097,7 +1178,7 @@ namespace AIKit
             } else {
                 outgoingEdges[word].Add(e);
             }
-            to.AddEdgeFrom(e);
+            if (!(to is null)) to.AddEdgeFrom(e);
         }
         public void AddEdgeFrom(SemanticWebEdge edge) {
             if (!incomingEdges.ContainsKey(edge.word)) {
@@ -1417,7 +1498,8 @@ namespace AIKit
             }
             output += "],\n O-edges:\n";
             foreach (SemanticWebEdge edge in N.GetEdges()) {
-                output += "\t"+edge.word.ToString()+" -> \tNode "+AllNodes.IndexOf(edge.to)+":\t"+edge.to.GetString()+"\n";
+                output += "\t" + edge.word.ToString();
+                if (!(edge.to is null)) output +=" -> \tNode "+AllNodes.IndexOf(edge.to)+":\t"+edge.to.GetString()+"\n";
             }
             output += " I-edges:\n";
             foreach (SemanticWebEdge edge in N.GetEdgesRev()) {
