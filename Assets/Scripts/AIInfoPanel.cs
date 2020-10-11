@@ -86,10 +86,10 @@ public class AIInfoPanel : MonoBehaviour
             string s = "Parsed Query '"+givenSentence+"?' to: "+sentenceParsed.ToString();
             //Debug.Log(s);
             
-            foreach (AIKit.Memory m in Entity.QueryMemories(sentenceParsed.GetLexicalEntryList())) {
-                s = "Response: "+m.GetSentence().ToString()+" - "+m.GetSentence().ToLiteralString();
-                Debug.Log(s);
-            }
+            //foreach (AIKit.Memory m in Entity.QueryMemories(sentenceParsed.GetLexicalEntryList())) {
+            //    s = "Response: "+m.GetSentence().ToString()+" - "+m.GetSentence().ToLiteralString();
+            //    Debug.Log(s);
+            //}
         }else {
             sentenceParsed = AIKit.AIKit_Grammar.Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
             string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.ToString();

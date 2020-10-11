@@ -1,9 +1,14 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System;
 using UnityEngine;
 
 namespace AIKit
 {
+    using ClassSemanticPair = Tuple<WordClass, object>;
+    using SemanticUpdatingFunc = Func<WordClass, List<Tuple<WordClass, object>>, object>;
+
     public struct Connotation 
     {
         public static Connotation Neutral = new Connotation();
@@ -56,7 +61,7 @@ namespace AIKit
 
     public enum WordClass 
     {
-        Name, S, Adj, N, P, V, Vtr, Det, NP, PP, VP, M_if, M_then, Ant, Con
+        EMPTY, Name, S, Adj, N, P, V, Vtr, Det, NP, PP, VP, M_if, M_then, Ant, Con, Conj
     }
 
     public class FlexibleLexicalEntry : LexicalEntry
@@ -208,6 +213,8 @@ namespace AIKit
         }
 
         void AppendNP(SemNP np) {
+            if (np is null) return;
+
             AppendWord(np.determiner);
             AppendWord(np.noun);
             SemPP pp = np.pp;
@@ -218,6 +225,8 @@ namespace AIKit
         }
 
         void AppendVP(SemVP vp) {
+            if (vp is null) return;
+
             AppendWord(vp.verb);
             foreach (SemNP np in vp.objects) {
                 AppendNP(np);
@@ -294,6 +303,37 @@ namespace AIKit
 
     }
 
+    public class GrammarTokenList
+    {
+        List<WordClass> parts;
+        public GrammarTokenList(List<WordClass> parts)
+        {
+            this.parts = parts;
+        }
+
+        public override bool Equals(object o)
+        {
+            GrammarTokenList other = o as GrammarTokenList;
+            if (other is null) return false;
+            return this == other;
+        }
+
+        public static bool operator ==(GrammarTokenList r1, GrammarTokenList r2)
+        {
+            return r2.parts.TrueForAll(p => r1.parts.Contains(p)) && r1.parts.TrueForAll(p => r2.parts.Contains(p));
+        }
+
+        public static bool operator !=(GrammarTokenList r1, GrammarTokenList r2)
+        {
+            return !(r1 == r2);
+        }
+
+        public override int GetHashCode()
+        {
+            return string.Join(",", parts).GetHashCode();
+        }
+    }
+
     public class AIKit_Grammar : MonoBehaviour 
     {
         public static Dictionary<string, LexicalEntry> dictionary;
@@ -307,6 +347,219 @@ namespace AIKit
         BeAnEntity beAnEntity;
         List<string> chatWindow;
         static bool dictReady = false;
+
+        //grammar parsing
+        public static Dictionary<GrammarTokenList, (WordClass, SemanticUpdatingFunc)> rules;
+
+        public static void ParseGrammarRules()
+        {
+            rules = new Dictionary<GrammarTokenList, (WordClass, SemanticUpdatingFunc)>();
+
+            //N -> Adj N
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.Adj, WordClass.N })] = (WordClass.N,
+                (product, parts) =>
+                {
+                    //existing adjectives?
+                    if (parts[1].Item2 as SemNP is null)
+                    {
+                        SemNP res = parts[1].Item2 as SemNP;
+                        res.adjectives.Add(parts[0].Item2 as LexicalEntry);
+                        return res;
+                    }
+                    else
+                    {
+                        SemNP res = new SemNP
+                        {
+                            noun = parts[1].Item2 as LexicalEntry
+                        };
+                        res.adjectives.Add(parts[0].Item2 as LexicalEntry);
+                        return res;
+                    }
+                }
+            );
+
+            //N -> N PP
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.N, WordClass.PP })] = (WordClass.N,
+                (product, parts) =>
+                {
+                    SemNP res = parts[0].Item2 as SemNP;
+                    res.pp = parts[1].Item2 as SemPP;
+                    return res;
+                }
+            );
+
+            //NP -> Det N
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.Det, WordClass.N })] = (WordClass.NP,
+                (product, parts) =>
+                {
+                    //bare LE noun?
+                    if (parts[1].Item2 as SemNP is null) {
+                        SemNP res = new SemNP
+                        {
+                            determiner = parts[0].Item2 as LexicalEntry,
+                            noun = parts[1].Item2 as LexicalEntry
+                        };
+                        return res;
+                    }
+                    else
+                    {
+                        SemNP res = parts[1].Item2 as SemNP;
+                        res.determiner = parts[0].Item2 as LexicalEntry;
+                        return res;
+                    }
+                }
+            );
+
+            //NP -> Name
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.Name })] = (WordClass.NP,
+                (product, parts) => { return new SemNP { noun = parts[0].Item2 as LexicalEntry }; }
+            );
+
+            //VP -> Vtr NP
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.Vtr, WordClass.NP })] = (WordClass.VP,
+                (product, parts) => {
+                    var res = new SemVP {
+                        verb = parts[0].Item2 as LexicalEntry
+                    };
+                    //NP is flexLE?
+                    if (parts[1].Item2 as SemNP is null)
+                    {
+                        res.objects.Add(new SemNP { noun = parts[1].Item2 as LexicalEntry });
+                    }
+                    else
+                    {
+                        res.objects.Add(parts[1].Item2 as SemNP);
+                    }
+                    return res;
+                }
+            );
+
+            //PP -> P NP
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.P, WordClass.NP })] = (WordClass.PP,
+                (product, parts) => { return new SemPP { preposition = parts[0].Item2 as LexicalEntry,
+                    //NP is FlexLE?
+                    np = (parts[1].Item2 as SemNP is null) ? new SemNP{noun = parts[1].Item2 as LexicalEntry} : parts[1].Item2 as SemNP }; }
+            );
+
+            //C -> M(then)S
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.M_then, WordClass.S })] = (WordClass.Con,
+                (product, parts) => { return parts[1].Item2 as SemSentence; }
+            );
+
+            //A -> M(if) S
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.M_if, WordClass.S })] = (WordClass.Ant,
+                (product, parts) => { return parts[1].Item2 as SemSentence; }
+            );
+
+            //S -> NP VP
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.NP, WordClass.VP })] = (WordClass.S,
+                (product, parts) => {
+                    return new SemSentence
+                    {
+                        //NP is FlexLE?
+                        np = (parts[0].Item2 as SemNP is null) ? new SemNP { noun = parts[0].Item2 as LexicalEntry } : parts[0].Item2 as SemNP,
+                        vp = parts[1].Item2 as SemVP
+                    };
+                }
+            );
+
+            //s -> NP V
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.NP, WordClass.V })] = (WordClass.S,
+                (product, parts) => {
+                    return new SemSentence
+                    {
+                        //NP is FlexLE?
+                        np = (parts[0].Item2 as SemNP is null) ? new SemNP { noun = parts[0].Item2 as LexicalEntry } : parts[0].Item2 as SemNP,
+                        vp = new SemVP { verb = parts[1].Item2 as LexicalEntry }   
+                    };
+                }
+            );
+
+            //s -> Ant Con
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.Ant, WordClass.Con })] = (WordClass.S,
+                (product, parts) => { return new SemImplication { antecedent = parts[0].Item2 as SemSentence, consequent = parts[1].Item2 as SemSentence }; }
+            );
+
+            //S -> S Conj S
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.S, WordClass.Conj, WordClass.S })] = (WordClass.S,
+                (product, parts) => { return new SemConjunction { conj = parts[1].Item2 as LexicalEntry, s1 = parts[0].Item2 as SemSentence, s2 = parts[2].Item2 as SemSentence }; }
+            );
+        }
+
+        public static (bool, SemSentence) ValidateGrammar(List<LexicalEntry> words)
+        {
+            WordClass latestProduct = WordClass.EMPTY;
+            Stack<ClassSemanticPair> tokenStack = new Stack<ClassSemanticPair>(words.ConvertAll(w => new ClassSemanticPair(w.wordClass, w as object)));
+            Stack<ClassSemanticPair> skipped = new Stack<ClassSemanticPair>();
+            Stack<ClassSemanticPair> parts = new Stack<ClassSemanticPair>();
+
+            Debug.Log("Validating: " + string.Join(",", tokenStack));
+            bool lastAttempt = false;
+
+            while (tokenStack.Count > 0)//&& ignoreTail < wordClassStack.Count)
+            {
+                //Debug.Log("Now on: "+ string.Join(",", wordClassStack));
+                var thisWord = tokenStack.Pop();
+                parts.Push(thisWord);
+
+                GrammarTokenList rule = new GrammarTokenList(parts.ToList().ConvertAll(w => w.Item1));
+                bool isnew = false;
+                if (rules.ContainsKey(rule))
+                {
+                    var ruleContent = rules[rule];
+                    WordClass producedWordClass = ruleContent.Item1;
+                    latestProduct = producedWordClass;
+
+                    //use the parts & object to construct/modify the actual object, store in result.
+                    object producedSemanticObject = ruleContent.Item2(producedWordClass, parts.ToList());
+
+                    tokenStack.Push(new ClassSemanticPair(producedWordClass, producedSemanticObject));
+
+                    parts.Clear();
+                    isnew = true;
+                    lastAttempt = false;
+
+                }
+
+                string wordClassString = thisWord.ToString();
+                Debug.Log(wordClassString + ", {" + string.Join(",", parts) + "}, " + latestProduct.ToString() + (isnew ? "*" : ""));
+
+                //if we fail, skip and try again
+                if (tokenStack.Count == 0 && !isnew && parts.Count > 0)
+                {
+                    int n = parts.Count;
+                    for (int i = 0; i < n; i++) tokenStack.Push(parts.Pop());
+                    skipped.Push(tokenStack.Pop()); // remove tail
+                    Debug.Log("Trying again, no tail: " + string.Join(",", tokenStack));
+                }
+
+                //if we've skipped everything, pop all skips and try again... or fail, if we've done this before with no results.
+                if (tokenStack.Count == 0 && !isnew && parts.Count == 0 && skipped.Count > 0)
+                {
+                    //fail when we've done all the skipping we can do, but rules didn't work
+                    if (lastAttempt) break;
+                    else
+                    {
+                        int n = skipped.Count;
+                        for (int i = 0; i < n; i++) tokenStack.Push(skipped.Pop());
+                        Debug.Log("Re-added tail: " + string.Join(",", tokenStack));
+                        lastAttempt = true;
+                    }
+                }
+
+                //success! only S remains.
+                if (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S && skipped.Count == 0 && parts.Count == 0)
+                {
+                    Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
+                    return (true, tokenStack.Peek().Item2 as SemSentence);
+                }
+            }
+
+            Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
+            return (false, null);
+        }
+
+        //
 
         public static LexicalEntry EntryFor(string s) 
         {
@@ -524,482 +777,46 @@ namespace AIKit
             dictReady = true;
         }
 
-        public static List<WordClass> CollapseGrammar(List<WordClass> seen) {
-            int n1 = seen.Count;
-
-            //Debug.Log("\tFrom: "+string.Join(" ",seen.ConvertAll<string>(word => word.ToString())));
-            bool popcon = false;
-            if (seen[seen.Count-1] == WordClass.Con) {
-                seen.RemoveAt(seen.Count-1);   
-                popcon = true;
-            }
-
-            //Grammatical rules
-
-            //this a lil hacky, but N -> N V allows the N to keep collapsing with a V on the end.
-            bool popverb = false;
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.N && seen[seen.Count-1] == WordClass.V) {
-                seen.RemoveAt(seen.Count-1);
-                popverb = true;
-            }
-
-            //S -> NP VP | NP V | Name VP | Name V | Ant Con
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.NP && seen[seen.Count-1] == WordClass.VP) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.S);
-            }
-
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.NP && seen[seen.Count-1] == WordClass.V) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.S);
-            }
-
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.Name && seen[seen.Count-1] == WordClass.VP) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.S);
-            }
-
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.Name && seen[seen.Count-1] == WordClass.V) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.S);
-            }
-
-            if (seen.Count >=1 && seen[seen.Count-1] == WordClass.Ant && popcon) {
-                seen.RemoveAt(seen.Count-1);
-                popcon = false;
-                seen.Add(WordClass.S);
-            }
-
-            //N -> Adj N | N PP
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.Adj && seen[seen.Count-1] == WordClass.N) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.N);
-            }
-
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.N && seen[seen.Count-1] == WordClass.PP) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.N);
-            }
-            //NP -> Det N | Name
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.Det && seen[seen.Count-1] == WordClass.N) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.NP);
-            }
-            if (seen.Count >=1 && seen[seen.Count-1] == WordClass.Name) {
-                seen.RemoveAt(seen.Count-1);
-                seen.Add(WordClass.NP);
-            }
-            //VP -> Vtr NP | V PP | Vtr PP
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.Vtr && seen[seen.Count-1] == WordClass.NP) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.VP);
-            }
-
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.V && seen[seen.Count-1] == WordClass.PP) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.VP);
-            }
-
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.Vtr && seen[seen.Count-1] == WordClass.PP) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.VP);
-            }
-
-            //PP -> P NP
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.P && seen[seen.Count-1] == WordClass.NP) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.PP);
-            }
-
-            //A -> M(if) S
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.M_if && seen[seen.Count-1] == WordClass.S) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.Ant);
-            }
-
-            //C -> M(then) S
-            if (seen.Count >=2 && seen[seen.Count-2] == WordClass.M_then && seen[seen.Count-1] == WordClass.S) {
-                seen.RemoveRange(seen.Count-2,2);
-                seen.Add(WordClass.Con);
-            }
-
-            if (popverb) {
-                seen.Add(WordClass.V);
-            }
-
-            if (popcon) {
-                seen.Add(WordClass.Con);
-            }
-
-            if (seen.Count==n1) {
-                //Debug.Log("Switching to parse SUBJ grammar");
-                seen = CollapseGrammarFurther(seen);
-            }
-
-            //Debug.Log("\tTo: "+string.Join(" ",seen.ConvertAll<string>(word => word.ToString())));
-            return seen;
-        }
-
-        public static List<WordClass> CollapseGrammarFurther(List<WordClass> seen) {
-            bool popcon = false;
-            if (seen[seen.Count-1] == WordClass.Con) {
-                seen.RemoveAt(seen.Count-1);   
-                popcon = true;
-            }
-
-            //peel off vp and collapse the subject towards an np?
-            if (seen[seen.Count-1] == WordClass.VP) {
-                seen.RemoveAt(seen.Count-1);
-                if (seen.Count>1)
-                    seen = CollapseGrammar(seen);
-                seen.Add(WordClass.VP);
-            }
-
-            if (popcon) {
-                seen.Add(WordClass.Con);
-            }
-            return seen;
-        }
-
-        public static object CollapseSemantics(ref List<LexicalEntry> words, object sem) {
-            if (words.Count == 0) return sem;
-            //Debug.Log("Words: "+ string.Join(".",words.ConvertAll(word => word.ToString())));
-            //start with the tail
-            LexicalEntry w = words[words.Count-1];
-            words.RemoveAt(words.Count-1);
-
-            //isolate antecedent from an implication if we need to keep collapsing
-            SemImplication prev_im = sem as SemImplication;
-            if (!(prev_im is null)) {
-                //pretty much guaranteed we're working on the antecedent
-                //Debug.Log("Now working on antecedent.");
-                sem = prev_im.antecedent;
-            }
-
-            //isolate np from a sentence if we need to keep collapsing
-            SemSentence prev_s = sem as SemSentence;
-            if (!(prev_s is null)) {
-                //Debug.Log("Preexisting Sentence: "+prev_s.ToString());
-                //if we have existing work on the subject
-                if (!(prev_s.np is null)) {
-                    //if we haven't reached the noun phrase part then we we're in the middle of a PP
-                    if (prev_s.np.noun is null){
-                        sem = prev_s.np.pp;
-                    }
-                    //otherwise we are building a np
-                    else {
-                        sem = prev_s.np;
-                    }
-                } 
-                //if we don't then start with a null subj
-                else {
-                    sem = null;
-                }        
-            }
-
-            SemImplication imp = null;
-            SemSentence s = null;
-            SemNP np = null;
-            SemPP pp = null;
-            SemVP vp = null;
-
-            //Debug.Log("W"+words.Count+":"+w.ToString());
-            
-            switch (w.wordClass) {
-                case WordClass.Adj:
-                    //should be followed by an NP
-                    np = sem as SemNP;
-                    if (!(np is null))  {
-                        np.adjectives.Add(w);
-                    }
-
-                    break;
-
-                case WordClass.Det:
-                    //should be followed by an NP
-                    np = sem as SemNP;
-                    if (!(np is null)) {
-                        np.determiner = w;
-                    }
-                    break;
-
-                //flexible lexical entries like "it" come as NP... also pronouns
-                case WordClass.NP:
-                    //Debug.Log("Noticed a flexible le: "+w.ToString());
-
-                    //if there's no following vp
-                    if (sem is null) {
-                        //Debug.Log("Null sem before: " + w.ToString());
-                        np = new SemNP();
-                        np.noun = w;
-                        sem = np;
-                        break;
-                    }
-
-                    //if there's a following PP (or a PP hidden in an NP...) then attach to this np
-                    pp = sem as SemPP;
-                    if (pp is null){
-                        np = sem as SemNP;
-                        if (!(np is null) && (np.noun is null)) {
-                            //Debug.Log("recover pp");
-                            pp = np.pp;
-                        }
-                        else np = null;
-                    }
-
-                    if (!(pp is null)) {
-                        np = new SemNP();
-                        np.noun = w;
-                        np.pp = pp;
-                        sem = np;
-                        break;
-                    }
-
-                    //if there's following vp then this is a subject
-                    vp = sem as SemVP;
-                    if (!(vp is null)) {
-                        s = new SemSentence();
-                        s.vp = vp;
-                        s.np = new SemNP();
-                        s.np.noun = w;
-                        sem = s;
-                    }
-
-                    break;
-
-                case WordClass.N: 
-                    //Debug.Log("Triggered Noun: " + w.ToString());
-                    //if there's no following vp
-                    if (sem is null) {
-                        //Debug.Log("Null sem before: " + w.ToString());
-                        np = new SemNP();
-                        np.noun = w;
-                        sem = np;
-                        break;
-                    }
-
-                    //if there's a following PP (or a PP hidden in an NP...) then attach to this np
-                    pp = sem as SemPP;
-                    if (pp is null){
-                        np = sem as SemNP;
-                        if (!(np is null) && (np.noun is null)) {
-                            //Debug.Log("recover pp");
-                            pp = np.pp;
-                        }
-                        else np = null;
-                    }
-                    
-                    if (!(pp is null)) {
-                        np = new SemNP();
-                        np.noun = w;
-                        np.pp = pp;
-                        sem = np;
-                        break;
-                    }
-
-                    //if there's following vp then this is a subject
-                    vp = sem as SemVP;
-                    if (!(vp is null)) {
-                        s = new SemSentence();
-                        s.vp = vp;
-                        s.np = new SemNP();
-                        s.np.noun = w;
-                        sem = s;
-                    }
-
-                    break;
-
-                case WordClass.V:
-                    //there should be no following object
-                    if (sem is null) {
-                        s = new SemSentence();
-                        s.vp = new SemVP();
-                        s.vp.verb = w;
-                        sem = s;
-                    }
-
-                    break;
-
-                case WordClass.Vtr: 
-                    //thre should be following object
-                    np = sem as SemNP;
-                    if (!(np is null))  {
-                        vp = new SemVP();
-                        vp.verb = w;
-                        vp.objects.Add(np);
-                        sem = vp;
-                    }
-                    break;
-
-                case WordClass.Name:
-                    //if there's no following vp
-                    if (sem is null) {
-                        np = new SemNP();
-                        np.noun = w;
-                        sem = np;
-                        break;
-                    }
-
-                    //if there's following vp then this is a subject
-                    vp = sem as SemVP;
-                    if (!(vp is null)) {
-                        s = new SemSentence();
-                        s.vp = vp;
-                        s.np = new SemNP();
-                        s.np.noun = w;
-                        sem = s;
-                    }
-                    break;
-
-                case WordClass.P: 
-                    //there should be a following NP
-                    np = sem as SemNP;
-                    if (!(np is null))  {
-                        pp = new SemPP();
-                        pp.preposition = w;
-                        pp.np = np;
-                        sem = pp;
-                    }
-                    break;
-
-                case WordClass.M_if:
-                    //there should be a following S
-                    s = sem as SemSentence;
-                    if (!(s is null)) {
-                        //Debug.Log("Capped off implication with IF.");
-                        //we neeed not do anything, this complete sentence will be added to the prev_im antecedent below...
-                    }
-                    break;
-
-                case WordClass.M_then:
-                    //there should be a following S, but we isolated it
-                    if (!(prev_s is null))  {
-                        //Debug.Log("Found THEN + S, making an impliction now...");
-                        imp = new SemImplication();
-                        imp.consequent = prev_s;
-                        prev_s = null;
-                        sem = imp;
-                    }
-                    break;
-
-                default:
-                    //Debug.Log("Failed to SemCollapse word: "+w.ToString());
-                    break;
-            } 
-
-            //Debug.Log("Lil piece is: "+(sem is null? "[sem is NULL]" : sem.ToString())+", p_sent is "+(prev_s is null ? "NULL" : prev_s.ToString() )+"and p_im is "+(prev_im is null ? "NULL" : prev_im.ToString()));
-
-            //reattach the np to the sentence if we isolated it for collapsing
-            if (!(prev_s is null)) {
-                //Debug.Log("Rebuilding sentence "+prev_s.ToString()+".");
-                if (!(sem as SemNP is null)) {
-                    prev_s.np = sem as SemNP;
-                }
-                else if (!(sem as SemPP is null)) {
-                    //don't worry abt overwrite the old np becuse it's part of a pp now
-                    prev_s.np = new SemNP();
-                    prev_s.np.pp = sem as SemPP;
-                }
-                else if (!(sem as SemVP is null)) {
-                    //we will completely replace sentence bc its np became a vp
-                    prev_s.np = null;
-                    prev_s.vp = sem as SemVP;
-                }
-
-                sem = prev_s;
-            }
-
-            //reattach this antecedent to an implication if we had one
-            if (!(prev_im is null)) {
-                //Debug.Log("Rebuilding implication "+prev_im.ToString()+".");
-                s = sem as SemSentence;
-
-                if (s is null) {
-                    np = sem as SemNP;
-                    pp = sem as SemPP;
-                    if (!(np is null)) {
-                        s = new SemSentence();
-                        s.np = np;
-                    } else if (!(pp is null)) {
-                        s = new SemSentence();
-                        s.np = new SemNP();
-                        s.np.pp = pp;
-                    }
-                }
-                
-                prev_im.antecedent = s;
-                sem = prev_im;
-            } 
-
-            //Debug.Log("Collapsed to" + sem.ToString());
-            return sem;
-        }
-
         public static List<LexicalEntry> ExpandToList( LexicalEntry le) {
             List<LexicalEntry> list = new List<LexicalEntry>();
             list.Add(le);
             return list;
         }
 
-        public static Sentence Interpret(List<string> words) {
-            if (words is null) 
+        public static Sentence Interpret(List<string> words)
+        {
+            if (words is null)
                 throw new System.Exception("No words provided!");
-            if (dictionary is null) 
+            if (dictionary is null)
                 throw new System.Exception("No dictionary initialized!");
 
-            bool negate = false;
-            Debug.Log("Interpreting: '[[["+string.Join(" ", words)+".]]]...'");
-            
-            //negate sentences if not is detected (use this for negation o/w)
-            if (words.Contains("not")) {
-                words.Remove("not");
-                negate = true;
-            }
-            List<WordClass> seen = new List<WordClass>();
-            List<LexicalEntry> les = new List<LexicalEntry>();
+            Debug.Log("Interpreting: '[[[" + string.Join(" ", words) + ".]]]...'");
 
-            for (int i = 0; i < words.Count; i++) {
-                if (!dictionary.ContainsKey(words[i])) {
+            List<LexicalEntry> lexicalEntries = new List<LexicalEntry>();
+
+            for (int i = 0; i < words.Count; i++)
+            {
+                if (!dictionary.ContainsKey(words[i]))
+                {
                     Debug.LogError("Unknown word: " + words[i]);
                     words[i] = "???";
-                } else {
-                    seen.Add(dictionary[words[i]].wordClass);
-                    les.Add(dictionary[words[i]]);
+                }
+                else
+                {
+                    lexicalEntries.Add(dictionary[words[i]]);
                 }
             }
 
-            //Collapse the sentence using ug rules until we reach a stable point. Hopefully thats an S
-            int n1, n2;
-            object o = null;
-            do {
-                n2 = les.Count;
-                n1 = seen.Count;
+            var res = ValidateGrammar(lexicalEntries);
 
-                seen = CollapseGrammar(seen);
-                o = CollapseSemantics(ref les, o);
-
-                if (les.Count==n2) {
-                    //Debug.Log("Switching to parse SUBJ semantics");
-                    o = CollapseSemantics(ref les, o);
-                }
-
-            } while (seen.Count<n1 || les.Count<n2);
-            SemSentence sem_s = o as SemSentence;
-            if (sem_s is null) {
-                Debug.LogError("Semantic Collapse Failed! Last word:"+les[les.Count-1]);
-            } else {
-                //Debug.Log("Semantic collapse successful:"+sem_s.ToString());
+            if (res.Item1)
+            {
+                return new Sentence(res.Item2);
             }
-
-            if (seen.Count==1 && seen[0]==WordClass.S) {
-                Sentence s = new Sentence(words.ConvertAll<LexicalEntry>(word => dictionary[word]), sem_s);
-                if (negate) s.Negate();
-                return s;
-            }
-            else 
+            else
             {
                 Debug.LogError(string.Join(" ", words.ToArray()));
-                throw new System.Exception("Sentence non-grammatical! Seen.Count is "+seen.Count+", and seen[0] is " + ((seen.Count > 0) ? seen[0].ToString() : "none"));
+                throw new System.Exception("Sentence non-grammatical!");
             }
         }
 
@@ -1152,6 +969,9 @@ namespace AIKit
                 Debug.Log("Dicitonary complete.");
             }
 
+            ParseGrammarRules();
+            Debug.Log("Loaded " + rules.Count + " grammar rules.");
+
             entity = EntityToTalkTo.GetComponent<BeAnEntity>().GetSelf();
             Debug.Log("Loaded entity: " + entity.GetName());
             beAnEntity = EntityToTalkTo.GetComponent<BeAnEntity>();
@@ -1226,11 +1046,11 @@ namespace AIKit
                     Debug.Log(s);
                     chatWindow.Add(s);
                     
-                    foreach (Memory m in entity.QueryMemories(sentenceParsed.GetLexicalEntryList())) {
-                        s = "Response: "+m.GetSentence().ToString()+" - "+m.GetSentence().ToLiteralString();
-                        Debug.Log(s);
-                        chatWindow.Add(s);
-                    }
+                    //foreach (Memory m in entity.QueryMemories(sentenceParsed.GetLexicalEntryList())) {
+                    //    s = "Response: "+m.GetSentence().ToString()+" - "+m.GetSentence().ToLiteralString();
+                    //    Debug.Log(s);
+                    //    chatWindow.Add(s);
+                    //}
                 }else {
                     sentenceParsed = Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
                     string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.ToString();

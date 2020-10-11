@@ -206,79 +206,79 @@ namespace AIKit {
             return memories;
         }
 
-        public List<Memory> QueryMemories(List<LexicalEntry> query) {
-            List<Memory> matches = new List<Memory>();
+    //    public List<Memory> QueryMemories(List<LexicalEntry> query) {
+    //        List<Memory> matches = new List<Memory>();
 
-            //get the non-flex portion of the query
-            List<LexicalEntry> query_no_flex = new List<LexicalEntry>();
-            List<FlexibleLexicalEntry> query_flex_only = new List<FlexibleLexicalEntry>();
-            foreach (LexicalEntry le in query) {
-                if (le is FlexibleLexicalEntry) {
-                    query_flex_only.Add(le as FlexibleLexicalEntry);
-                    Debug.Log("\tFlex in query: "+ (le as FlexibleLexicalEntry).ToString());
-                }
-                else {
-                    query_no_flex.Add(le);
-                    Debug.Log("\tNon-flex in query: "+ le.ToString());
-                }
-            }
+    //        //get the non-flex portion of the query
+    //        List<LexicalEntry> query_no_flex = new List<LexicalEntry>();
+    //        List<FlexibleLexicalEntry> query_flex_only = new List<FlexibleLexicalEntry>();
+    //        foreach (LexicalEntry le in query) {
+    //            if (le is FlexibleLexicalEntry) {
+    //                query_flex_only.Add(le as FlexibleLexicalEntry);
+    //                Debug.Log("\tFlex in query: "+ (le as FlexibleLexicalEntry).ToString());
+    //            }
+    //            else {
+    //                query_no_flex.Add(le);
+    //                Debug.Log("\tNon-flex in query: "+ le.ToString());
+    //            }
+    //        }
 
             
-            foreach (Memory m in memory)
-            {
-                if (false && !m.isAboutAll(query_no_flex)) continue; //make sure the flex match quickly
-                else {
-                    //match no-flex more closely and build collapse_to_flex
-                    List<LexicalEntry> mem_le = m.GetSentence().GetLexicalEntryList();
-                    List<WordClass> collapse_to_flex = new List<WordClass>();
-                    List<GenerativeWordClass> collapse_to_flex_gen = new List<GenerativeWordClass>();
-                    int j = 0;
-                    for (int i = 0; i < mem_le.Count && j<query_no_flex.Count; i++) {
-                        if (mem_le[i] == query_no_flex[j]) j++;
-                        else {
-                            collapse_to_flex.Add(mem_le[i].wordClass);
-                            collapse_to_flex_gen.Add(mem_le[i].generativeWordClass);
-                        }
-                    }
-                    if (j != query_no_flex.Count) continue; //discard the memory if no_flex don't match
+    //        foreach (Memory m in memory)
+    //        {
+    //            if (false && !m.isAboutAll(query_no_flex)) continue; //make sure the flex match quickly
+    //            else {
+    //                //match no-flex more closely and build collapse_to_flex
+    //                List<LexicalEntry> mem_le = m.GetSentence().GetLexicalEntryList();
+    //                List<WordClass> collapse_to_flex = new List<WordClass>();
+    //                List<GenerativeWordClass> collapse_to_flex_gen = new List<GenerativeWordClass>();
+    //                int j = 0;
+    //                for (int i = 0; i < mem_le.Count && j<query_no_flex.Count; i++) {
+    //                    if (mem_le[i] == query_no_flex[j]) j++;
+    //                    else {
+    //                        collapse_to_flex.Add(mem_le[i].wordClass);
+    //                        collapse_to_flex_gen.Add(mem_le[i].generativeWordClass);
+    //                    }
+    //                }
+    //                if (j != query_no_flex.Count) continue; //discard the memory if no_flex don't match
                     
-                    //try to collapse and match flex
-                    int n1;
-                    do {
-                        n1 = collapse_to_flex.Count;//collect prior length to detect collapsing
-                        //check for a match between collapse_to_flex/gen and query_flex_only
-                        int jj = 0;
-                        for (int i = 0; i < collapse_to_flex.Count && jj < query_flex_only.Count; i++) {
-                            if (query_flex_only[jj].type == 1 && collapse_to_flex[i] == query_flex_only[jj].wordClass) jj++;
-                            if (query_flex_only[jj].type == 0 && collapse_to_flex_gen[i] == query_flex_only[jj].generativeWordClass) jj++;
-                        }
-                        if (jj != query_flex_only.Count) {
-                            //we have a match!
-                            matches.Add(m);
-                            continue;
-                        }
+    //                //try to collapse and match flex
+    //                int n1;
+    //                do {
+    //                    n1 = collapse_to_flex.Count;//collect prior length to detect collapsing
+    //                    //check for a match between collapse_to_flex/gen and query_flex_only
+    //                    int jj = 0;
+    //                    for (int i = 0; i < collapse_to_flex.Count && jj < query_flex_only.Count; i++) {
+    //                        if (query_flex_only[jj].type == 1 && collapse_to_flex[i] == query_flex_only[jj].wordClass) jj++;
+    //                        if (query_flex_only[jj].type == 0 && collapse_to_flex_gen[i] == query_flex_only[jj].generativeWordClass) jj++;
+    //                    }
+    //                    if (jj != query_flex_only.Count) {
+    //                        //we have a match!
+    //                        matches.Add(m);
+    //                        continue;
+    //                    }
 
-                        //collapse and try again
-                        collapse_to_flex = AIKit_Grammar.CollapseGrammar(collapse_to_flex);
-                        if (collapse_to_flex.Count==n1)
-                            collapse_to_flex = AIKit_Grammar.CollapseGrammarFurther(collapse_to_flex);
+    //                    //collapse and try again
+    //                    collapse_to_flex = AIKit_Grammar.CollapseGrammar(collapse_to_flex);
+    //                    if (collapse_to_flex.Count==n1)
+    //                        collapse_to_flex = AIKit_Grammar.CollapseGrammarFurther(collapse_to_flex);
 
 
-                    } while (collapse_to_flex.Count<n1);//give up if no collapsing happened
-                    //finally, give up bc u can't collapse and match the flex
-                }
-            }
+    //                } while (collapse_to_flex.Count<n1);//give up if no collapsing happened
+    //                //finally, give up bc u can't collapse and match the flex
+    //            }
+    //        }
 
-            //debugging:print query and any matched mems
-            string s = "Query: ";
-            foreach (LexicalEntry le in query) {
-                s+=le.ToString()+" ";
-            }
-            s+="?";
-            Debug.Log(s);
+    //        //debugging:print query and any matched mems
+    //        string s = "Query: ";
+    //        foreach (LexicalEntry le in query) {
+    //            s+=le.ToString()+" ";
+    //        }
+    //        s+="?";
+    //        Debug.Log(s);
 
-            return matches;
-        }
+    //        return matches;
+    //    }
     }
 
     [System.Serializable]

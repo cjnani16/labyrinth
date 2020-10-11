@@ -92,7 +92,7 @@ namespace AIKit
         public override string ToString() {
             string s = verb.ToString() + " => {";
             foreach (SemNP np in objects) {
-                s += np.ToString() + "& ";
+                s += ((np is null) ? "{NULL}" : np.ToString()) + "& ";
             }
             foreach (SemSentence sen in sentenceObjects) {
                 s += sen.ToString() + "& ";
@@ -150,6 +150,10 @@ namespace AIKit
         public SemVP vp;
 
         virtual public bool isImplication() {
+            return false;
+        }
+        virtual public bool isConjunction()
+        {
             return false;
         }
 
@@ -265,6 +269,35 @@ namespace AIKit
         public override bool isImplication() {
             return true;
         }
+        public override bool isConjunction()
+        {
+            return false;
+        }
     }
-   
+
+    public class SemConjunction : SemSentence
+    {
+        public SemSentence s1, s2;
+        public LexicalEntry conj;
+        public SemConjunction()
+        {
+            this.s1 = null;
+            this.s2 = null;
+            this.conj = null;
+        }
+        public override string ToString()
+        {
+            string str = (this.s1 is null ? "{NULL}" : s1.ToString()) + " " + (this.conj is null ? "{NULL}" : conj.ToString()) + " " + (this.s2 is null ? "{NULL}" : s2.ToString());
+            return str;
+        }
+        public override bool isImplication()
+        {
+            return false;
+        }
+        public override bool isConjunction()
+        {
+            return true;
+        }
+    }
+
 }
