@@ -21,7 +21,7 @@ namespace AIKit {
 
     }
     public enum GenerativeWordClass {
-        Demonstratives, Determiners, Inquiries, ItrVerbs, TrVerbs, Names, PossessiveDeterminers, PosessiveNounPhrases, Subjects, Nouns, Places, Prepositions, Adjectives, Markers, Deictic, Antecedents, Consequents
+        Demonstratives, Determiners, Inquiries, ItrVerbs, TrVerbs, Names, PossessiveDeterminers, PosessiveNounPhrases, Subjects, Nouns, Places, Prepositions, Adjectives, Markers, Deictic, Antecedents, Consequents, Conjunctions
     }
     public class Entity {
         SemNP name;

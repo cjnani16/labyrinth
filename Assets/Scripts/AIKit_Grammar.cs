@@ -434,6 +434,8 @@ namespace AIKit
                 }
             );
 
+            //VP -> Vtr_S S (TODO: implement. Vtr_S are verbs with sentencial objects, e.g. "says", "think", "request"
+
             //PP -> P NP
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.P, WordClass.NP })] = (WordClass.PP,
                 (product, parts) => { return new SemPP { preposition = parts[0].Item2 as LexicalEntry,
@@ -463,26 +465,37 @@ namespace AIKit
                 }
             );
 
-            //s -> NP V
+            //S -> NP V
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.NP, WordClass.V })] = (WordClass.S,
-                (product, parts) => {
+                (product, parts) =>
+                {
                     return new SemSentence
                     {
                         //NP is FlexLE?
                         np = (parts[0].Item2 as SemNP is null) ? new SemNP { noun = parts[0].Item2 as LexicalEntry } : parts[0].Item2 as SemNP,
-                        vp = new SemVP { verb = parts[1].Item2 as LexicalEntry }   
+                        vp = new SemVP { verb = parts[1].Item2 as LexicalEntry }
                     };
                 }
             );
 
-            //s -> Ant Con
+            //S -> Ant Con
+            //results in a non-literal/meta sentence. an implication.
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.Ant, WordClass.Con })] = (WordClass.S,
-                (product, parts) => { return new SemImplication { antecedent = parts[0].Item2 as SemSentence, consequent = parts[1].Item2 as SemSentence }; }
+                (product, parts) => {
+                    SemImplication imp = new SemImplication { antecedent = parts[0].Item2 as SemSentence, consequent = parts[1].Item2 as SemSentence };
+                    imp.MakeQuote();
+                    return imp;
+                }
             );
 
             //S -> S Conj S
+            //results in a non-literal/meta sentence. a compound
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.S, WordClass.Conj, WordClass.S })] = (WordClass.S,
-                (product, parts) => { return new SemConjunction { conj = parts[1].Item2 as LexicalEntry, s1 = parts[0].Item2 as SemSentence, s2 = parts[2].Item2 as SemSentence }; }
+                (product, parts) => {
+                    SemCompound conj = new SemCompound { conj = parts[1].Item2 as LexicalEntry, s1 = parts[0].Item2 as SemSentence, s2 = parts[2].Item2 as SemSentence };
+                    conj.MakeQuote();
+                    return conj;
+                }
             );
         }
 
@@ -704,6 +717,18 @@ namespace AIKit
                 {
                     if (result.ContainsKey(L)) continue;
                     result.Add(L,new LexicalEntry(L,WordClass.P,GenerativeWordClass.Prepositions,Connotation.Neutral));
+                }
+            }
+            file.Close();
+
+            file = new System.IO.StreamReader("Assets/Scripts/WordLists/conjunctions.txt");
+            while ((L = file.ReadLine()) != null)
+            {
+                L = L.Trim();
+                if (L.Length != 0)
+                {
+                    if (result.ContainsKey(L)) continue;
+                    result.Add(L, new LexicalEntry(L, WordClass.Conj, GenerativeWordClass.Conjunctions, Connotation.Neutral));
                 }
             }
             file.Close();

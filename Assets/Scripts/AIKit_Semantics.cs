@@ -16,6 +16,7 @@ namespace AIKit
             this.adjectives = new List<LexicalEntry>();
             this.noun = null;
             this.pp = null;
+            this.qt = QuoteType.Literal;
         }
 
         public SemNP(SemNP original) {
@@ -23,6 +24,7 @@ namespace AIKit
             this.adjectives = new List<LexicalEntry>(original.adjectives);
             this.noun = new LexicalEntry(original.noun);
             this.pp = (original.pp is null) ? null : new SemPP(original.pp);
+            this.qt = original.qt;
         }
         //the
         public LexicalEntry determiner;
@@ -31,6 +33,7 @@ namespace AIKit
         //house
         public LexicalEntry noun;
         public SemPP pp;
+        public QuoteType qt; //is this literal? Important for Semantic Web
 
         public override string ToString() {
             string s = "( ";
@@ -43,6 +46,14 @@ namespace AIKit
             s += " )";
             if (!(pp is null)) s += "<-" + pp.ToString();
 
+            switch (qt)
+            {
+                case QuoteType.Start: s = "<Q_S>" + s + "</Q_S>"; break;
+                case QuoteType.Mid: s = "<Q_M>" + s + "</Q_M>"; break;
+                case QuoteType.End: s = "<Q_E>" + s + "</Q_E>"; break;
+                case QuoteType.Invalid: s = "<Q_XXX!>" + s + "</Q_XXX!>"; break;
+            }
+
             return s;
         }
         
@@ -51,6 +62,7 @@ namespace AIKit
             //Debug.LogWarning("1");
             SemNP other = obj as SemNP;
             //Debug.LogWarning("2");
+            if (this.qt != other.qt) return false;
             if (other.noun is null || this.noun is null) return false;
             //Debug.LogWarning("3");
             if (this.noun != other.noun) return false;
@@ -149,12 +161,90 @@ namespace AIKit
         //{excitedly throw <-> a ball} }
         public SemVP vp;
 
-        virtual public bool isImplication() {
+        //interret literally? or is it meta
+        public bool quoted;
+
+        virtual public bool IsQuoted()
+        {
+            return quoted;
+        }
+        virtual public bool IsImplication() {
             return false;
         }
-        virtual public bool isConjunction()
+        virtual public bool IsCompound()
         {
             return false;
+        }
+        public void MakeQuote()
+        {
+            MakeQuote(QuoteType.Start);
+        }
+        virtual public void MakeQuote(QuoteType qt)
+        {
+            this.quoted = true;
+            this.np.qt = qt == QuoteType.Start ? QuoteType.Start : QuoteType.Mid;
+
+            if (qt == QuoteType.Start || qt == QuoteType.Mid)
+            {
+                foreach (SemNP np in this.vp.objects)
+                {
+                    np.qt = QuoteType.Mid;
+                }
+                foreach (SemSentence s in this.vp.sentenceObjects)
+                {
+                    s.MakeQuote(QuoteType.Mid);
+                }
+            }
+
+            //add the end if thre are no sentence objects
+            if (qt == QuoteType.Start || qt == QuoteType.End) {
+                if (vp.sentenceObjects.Count > 0)
+                {
+                    vp.sentenceObjects[vp.sentenceObjects.Count - 1].MakeQuote(QuoteType.End);
+                }
+                else if (vp.objects.Count > 0)
+                {
+                    vp.objects[vp.objects.Count - 1].qt = QuoteType.End;
+                }
+                else
+                {
+                    this.np.qt = QuoteType.End;
+                }
+            }
+        }
+
+        virtual public void MakeLiteral()
+        {
+            this.quoted = false;
+            this.np.qt = QuoteType.Literal;
+            foreach (SemNP np in this.vp.objects)
+            {
+                np.qt = QuoteType.Literal;
+            }
+            foreach (SemSentence s in this.vp.sentenceObjects)
+            {
+                s.MakeLiteral();
+            }
+
+        }
+
+        //useful for the web
+        virtual public SemNP GetLastNP()
+        {
+            if (this.vp.sentenceObjects.Count > 0)
+            {
+                return vp.sentenceObjects[vp.sentenceObjects.Count - 1].GetLastNP();
+            }
+            else if (this.vp.objects.Count > 0)
+            {
+                return this.vp.objects[this.vp.objects.Count - 1];
+            }
+
+            return this.np;
+        }
+        virtual public SemNP GetFirstNP()
+        {
+            return this.np;
         }
 
         public SemSentence() {
@@ -261,25 +351,62 @@ namespace AIKit
         public SemImplication() {
             this.antecedent = null;
             this.consequent = null;
+            this.quoted = false;
         }
         public override string ToString() {
             string str = (this.antecedent is null ? "{NULL}" : antecedent.ToString()) + " implies " + (this.consequent is null ? "{NULL}" : consequent.ToString());
             return str;
         }
-        public override bool isImplication() {
+        public override bool IsQuoted()
+        {
+            return this.quoted;
+        }
+        public override bool IsImplication() {
             return true;
         }
-        public override bool isConjunction()
+        public override bool IsCompound()
         {
             return false;
         }
+        public override void MakeQuote(QuoteType qt)
+        {
+            this.quoted = true;
+            if (qt != QuoteType.End)
+            {
+                antecedent.MakeQuote(QuoteType.Mid);
+                if (qt == QuoteType.Start)
+                {
+                    antecedent.np.qt = QuoteType.Start;
+                }
+                consequent.MakeQuote(QuoteType.Mid);
+            }
+
+            if (qt != QuoteType.Mid)
+            {
+                consequent.MakeQuote(QuoteType.End);
+            }
+        }
+        public override void MakeLiteral()
+        {
+            this.quoted = false;
+            antecedent.MakeLiteral();
+            consequent.MakeLiteral();
+        }
+        public override SemNP GetFirstNP()
+        {
+            return antecedent.GetFirstNP();
+        }
+        public override SemNP GetLastNP()
+        {
+            return consequent.GetLastNP();
+        }
     }
 
-    public class SemConjunction : SemSentence
+    public class SemCompound : SemSentence
     {
         public SemSentence s1, s2;
         public LexicalEntry conj;
-        public SemConjunction()
+        public SemCompound()
         {
             this.s1 = null;
             this.s2 = null;
@@ -290,13 +417,50 @@ namespace AIKit
             string str = (this.s1 is null ? "{NULL}" : s1.ToString()) + " " + (this.conj is null ? "{NULL}" : conj.ToString()) + " " + (this.s2 is null ? "{NULL}" : s2.ToString());
             return str;
         }
-        public override bool isImplication()
+        public override bool IsQuoted()
+        {
+            return this.quoted;
+        }
+        public override bool IsImplication()
         {
             return false;
         }
-        public override bool isConjunction()
+        public override bool IsCompound()
         {
             return true;
+        }
+
+        public override void MakeQuote(QuoteType qt)
+        {
+            this.quoted = true;
+            if (qt != QuoteType.End)
+            {
+                s1.MakeQuote(QuoteType.Mid);
+                if (qt == QuoteType.Start)
+                {
+                    s1.np.qt = QuoteType.Start;
+                }
+                s2.MakeQuote(QuoteType.Mid);
+            }
+
+            if (qt != QuoteType.Mid)
+            {
+                s2.MakeQuote(QuoteType.End);
+            }
+        }
+        public override void MakeLiteral()
+        {
+            this.quoted = false;
+            s1.MakeLiteral();
+            s2.MakeLiteral();
+        }
+        public override SemNP GetFirstNP()
+        {
+            return s1.GetFirstNP();
+        }
+        public override SemNP GetLastNP()
+        {
+            return s2.GetLastNP();
         }
     }
 

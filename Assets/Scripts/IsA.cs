@@ -37,7 +37,7 @@ namespace AIKit
         }
 
         public void BecomeA(string thing) {
-            LexicalEntry le = AIKit_Grammar.dictionary[thing];
+            LexicalEntry le = AIKit_Grammar.EntryFor(thing);
             if (le.wordClass != WordClass.N) le.AffixReferent(gameObject);
             Iam.Add(AIKit_Grammar.ExpandToList(le));
         }
@@ -55,7 +55,7 @@ namespace AIKit
                 noun.AffixReferent(this.gameObject);
                 np.noun = noun;
                 if (noun.wordClass == WordClass.N)
-                    np.determiner = AIKit_Grammar.dictionary["a"];
+                    np.determiner = AIKit_Grammar.EntryFor("a");
                 NPs.Add(np);
             }
             return NPs;

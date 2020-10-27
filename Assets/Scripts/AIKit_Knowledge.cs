@@ -11,6 +11,10 @@ namespace AIKit
     {
         Atomic, Universal, Existential
     }
+    public enum QuoteType
+    {
+        Invalid, Literal, Start, Mid, End
+    }
 
     public class KnowledgeModule {
         public LexicalMemory lexicalMemory;
@@ -33,59 +37,97 @@ namespace AIKit
             this.perceptualFacts = new HashSet<SemSentence>();
         }
 
-        void interpretSentence(Sentence s, float salience) {
-            Debug.Log("Interpreting Sentence "+s.GetSemantics().ToString()+"...");
+        void interpretSentence(Sentence s, float salience)
+        {
+            interpretSentence(s, s.GetSemantics(), salience);
+        }
+
+        void interpretSentence(Sentence s, SemSentence sem, float salience) {
+            Debug.Log("Interpreting Sentence "+s.ToString()+"...");
             //Debug.Log("Is this a rule? "+s.GetSemantics().ToString()+" : "+ (!(s.GetSemantics() as SemImplication is null)));
 
             //break down sentence, modify lexical memory & semantic web apropriately
-            Stack<SemSentence> roots = new Stack<SemSentence>();
-            roots.Push(s.GetSemantics());
+            Queue<SemSentence> roots = new Queue<SemSentence>();
+            roots.Enqueue(sem);
+
+            //if requested, give a ref to the first np's node.
 
             int timeout = 100; //okay, this might be mean but i need to limit the procesing time on these & avoid loops sooo...
 
             //We will interpret this sentence AND any sentences entailed by this sentence
             while (roots.Count > 0 && timeout > 0) {
                 timeout--;
-                SemSentence root = roots.Pop();
+                SemSentence root = roots.Dequeue();
 
-                //for now, we only put implications into the set
-                if (!(root as SemImplication is null)) {
+                //is it an implication?
+                if (root.IsImplication())
+                {
+                    Debug.LogError("BEFORE LEARNRULE: "+ s.GetSemantics().ToString());
                     this.LearnRule(s);
+                    Debug.LogError("AFTER LEARNRULE: " + s.GetSemantics().ToString());
+
+                    SemImplication imp = root as SemImplication;
+
+                    interpretSentence(s, imp.antecedent, salience);
+                    interpretSentence(s, imp.consequent, salience);
+
+                    SemanticWebNode antLast = lexicalMemory.GetOrInsert(imp.antecedent.GetLastNP());
+                    SemanticWebNode consFirst = lexicalMemory.GetOrInsert(imp.consequent.GetFirstNP());
+
+                    antLast.AddEdgeTo(AIKit_Grammar.EntryFor("implies"), consFirst, s, salience);
                     continue;
                 }
 
-                
+                //is it a compound?
+                if (root.IsCompound())
+                {
+                    SemCompound com = root as SemCompound;
+
+                    interpretSentence(s, com.s1, salience);
+                    interpretSentence(s, com.s2, salience);
+
+                    SemanticWebNode s1Last = lexicalMemory.GetOrInsert(com.s1.GetLastNP());
+                    SemanticWebNode s2First = lexicalMemory.GetOrInsert(com.s2.GetFirstNP());
+
+                    s1Last.AddEdgeTo(com.conj, s2First, s, salience);
+                    continue;
+                }
+
+                //Handle normal sentences
                 //might cause infinite loops? but implication elimination happens here :c (so i added the timout counter)
                 foreach (SemSentence conclusion in GetResultsFrom(root).ConvertAll((result) => AIKit_Grammar.FillPronouns(s.GetSemantics(), result))) {
-                    roots.Push(conclusion);
+                    roots.Enqueue(conclusion);
                     Debug.Log("Derived rule-based result:\t" + conclusion.ToString());
                 }
 
                 SemNP np = root.np;
-                List<SemanticWebNode> subjectNodes = interpretObject(np, s, salience, 1);
+                List<SemanticWebNode> subjectNodes = GetWebNodeByNP(np, s, salience, 1);
                 SemVP vp = root.vp;
 
                 foreach (SemanticWebNode subjectNode in subjectNodes) {
                     foreach (SemNP obj in vp.objects) {
-                        List<SemanticWebNode> objNodes = interpretObject(obj, s, salience, vp.verb.ToString().StartsWith("no")?0:1);
+                        List<SemanticWebNode> objNodes = GetWebNodeByNP(obj, s, salience, 1);//vp.verb.ToString().StartsWith("no")?0:1);
                         foreach (SemanticWebNode objNode in objNodes) {
                             //Debug.Log("\tDerived conclusion:\t"+ subjectNode.GetString() +" "+ vp.verb.ToString() +" "+ objNode.GetString());
                             SemSentence newRoot = new SemSentence(subjectNode.GetAliases()[0], vp.verb, objNode.GetAliases()[0]);
-                            if (newRoot != root) roots.Push(newRoot); //to avoid infinite loops dont push what i just derived. 
+                            if (newRoot != root) roots.Enqueue(newRoot); //to avoid infinite loops dont push what i just derived. 
                             //maybe even make a set of these old roots for avoidin larger loops?
                             subjectNode.AddEdgeTo(vp.verb, objNode, s, salience);
                         }
                     }
+
+                    /* TODO: handle quoted sentences
                     foreach (SemSentence obj in vp.sentenceObjects) {
                         List<SemanticWebNode> objNodes = interpretObject(obj, s, salience, vp.verb.ToString().StartsWith("no")?0:1);
                         foreach (SemanticWebNode objNode in objNodes) {
                             //Debug.Log("Derived conclusion:\t"+ subjectNode.GetString() +" "+ vp.verb.ToString() +" "+ objNode.GetString());
                             SemSentence newRoot = new SemSentence(subjectNode.GetAliases()[0], vp.verb, objNode.GetAliases()[0]);
-                            if (newRoot != root) roots.Push(newRoot); //to avoid infinite loops dont push what i just derived. 
+                            if (newRoot != root) roots.Enqueue(newRoot); //to avoid infinite loops dont push what i just derived. 
                             //maybe even make a set of these old roots for avoidin larger loops?
                             subjectNode.AddEdgeTo(vp.verb, objNode, s, salience);
                         }
-                    }
+                    }*/
+
                     //intransitive verb vp's have no objects!
                     if (vp.objects.Count == 0 && vp.sentenceObjects.Count == 0)
                     {
@@ -95,13 +137,14 @@ namespace AIKit
             } 
         }
 
-        List<SemanticWebNode> interpretObject(object obj, Sentence s, float salience, int flexibility) {
+        //get Node by np, always using QuoteType literal. maybe handle choosing form multi matches HERE (instead of GetOrInsert)
+        List<SemanticWebNode> GetWebNodeByNP(SemNP np, Sentence s, float salience, int flexibility) {
             //flexibility settings:
             //  0 - GET HYPONYMS/reverse IS'es (things which entail this) a carrot -is-> a vegetable
             //  1 - GET HYPERNYMS/forward IS'es (things which are entailed BY this)
             // any other number has no flexibility//doesnt traverse any IS edges. probably a bug.
 
-            SemanticWebNode n = lexicalMemory.GetOrInsert(obj); //if there's an existing node for this np we just update it, o.w. make one...
+            SemanticWebNode n = lexicalMemory.GetOrInsert(np); //if there's an existing node for this np we just update it, o.w. make one...
             List<SemanticWebNode> matchingNodes = new List<SemanticWebNode> {n};
             switch (flexibility) {
                 case 0: {
@@ -121,24 +164,50 @@ namespace AIKit
                 default: Debug.LogWarning("Inflexible object interpretation."); break;
             }
 
-            SemNP np;
-            if (!((np = obj as SemNP) is null)) {
-                SemPP pp = np.pp;
-                if (!(pp is null)) {
-                    List<SemanticWebNode> ppObjects = interpretObject(pp.np, s, salience, 1);
+            SemPP pp = np.pp;
+            if (!(pp is null)) {
+                List<SemanticWebNode> ppObjects = GetWebNodeByNP(pp.np, s, salience, 1);
 
-                    foreach (SemanticWebNode node in matchingNodes) {
-                        //if (np.determiner.ToString() == "the") Do something? -- the above line already carries over referents, so..
-                        foreach (SemanticWebNode ppObj in ppObjects) {
-                            node.AddEdgeTo(pp.preposition, ppObj, s, salience);
-                        }
+                foreach (SemanticWebNode node in matchingNodes) {
+                    //if (np.determiner.ToString() == "the") Do something? -- the above line already carries over referents, so..
+                    foreach (SemanticWebNode ppObj in ppObjects) {
+                        node.AddEdgeTo(pp.preposition, ppObj, s, salience);
                     }
-
                 }
+
             }
+            
 
             return matchingNodes;
         }
+
+        ////Given a quoted semS, adds semanticwebnodes for it and returns the node for the last or first semNP in the quote's chain
+        //SemanticWebNode GetWebNodeBySentence(SemSentence s, Sentence originalSentence, float salience, bool last)
+        //{
+        //    if (!s.IsQuoted()) { Debug.LogError("Trying to interpret non-Quote as Quote!"); }
+
+        //    //is it an implication?
+        //    if (s.IsImplication())
+        //    {
+        //        SemImplication imp = s as SemImplication;
+        //        SemanticWebNode antLast = GetWebNodeBySentence(imp.antecedent, originalSentence, salience, true);
+        //        SemanticWebNode consFirst = GetWebNodeBySentence(imp.consequent, originalSentence, salience, false);
+        //        antLast.AddEdgeTo(AIKit_Grammar.EntryFor("implies"), consFirst, originalSentence, salience);
+        //    }
+
+        //    //is it a compound?
+        //    if (s.IsCompound())
+        //    {
+        //        SemCompound com = s as SemCompound;
+        //        SemanticWebNode s1Last = GetWebNodeBySentence(com.s1, originalSentence, salience, true);
+        //        SemanticWebNode s2First = GetWebNodeBySentence(com.s2, originalSentence, salience, false);
+        //        s1Last.AddEdgeTo(com.conj, s2First, originalSentence, salience);
+        //    }
+
+        //    //normal sentences, link np node to objects then return last (or first) node.
+        //    SemanticWebNode subjectNode = lexicalMemory.GetOrInsert(s.np);
+
+        //}
 
         public void interpretEvent(Sentence s, float salience ) {
             //take in sentence, modify lexical and episodic memories apropriately
@@ -340,6 +409,7 @@ namespace AIKit
                 return ret;
             }
 
+            /* TODO: handle sentencial objects differently, the new way
             foreach (SemSentence branchObject in branch.sentenceObjects) {
                 //sentencial branch obj ALWAYS simple node check
                 SemanticWebNode branchObjectNode = lexicalMemory.GetOrInsert(branchObject);
@@ -350,16 +420,21 @@ namespace AIKit
                 console += addtl;
                 if (!res) return false;
             }
+            */
 
             //if all the objects were satisfied, return true;
             return true;
         }
 
         public bool isTrue(SemSentence s, out string console){
+            console = "";
+
+            //implications, compounds, and quotes are validated differently.
+            if (s.IsQuoted() || s.IsCompound() || s.IsImplication()) return false;
+
             SemNP root = new SemNP(s.np);
             SemVP branch = new SemVP(s.vp);
             SemSentence why;
-            console = "";
 
             if (this.perceptualFacts.Contains(s)) {
                 console+="This is a perceptual fact.\n";
@@ -512,6 +587,8 @@ namespace AIKit
 
         public void LearnRule(Sentence s) {
             SemImplication rule = s.GetSemantics() as SemImplication;
+            rule.MakeLiteral();
+
             if (rule is null) return;
 
             Debug.LogError ("Learning Rule: " + rule.ToString());
@@ -540,6 +617,7 @@ namespace AIKit
                 this.waysTo.Add(newConsequent, new List<SemSentence>() {matchingAntecedent});
             }
 
+            rule.MakeQuote();
         }
 
         public List<SemSentence> GetWaysTo2(SemSentence goal) {
@@ -728,8 +806,9 @@ namespace AIKit
             
 
             hypernyms = hypernyms.Distinct().ToList();
-            
+
             //Debug.LogError("Found " + string.Join("/",hypernyms));
+            hypernyms.ForEach((np) => { np.qt = thisNodesName.qt; });
             return hypernyms;
         }
 
@@ -762,6 +841,7 @@ namespace AIKit
             //add "anything" to the list
             SemNP anything = new SemNP();
             anything.noun = AIKit_Grammar.EntryFor("anything");
+            anything.qt = original.GetAliases()[0].qt;
             hyponyms.Add(lexicalMemory.GetOrInsert(anything));
 
             //add "any" ___ to the list, if this is a noun (we do this instead of using an "is" edge.)
@@ -808,6 +888,7 @@ namespace AIKit
             //add "anything" to the list
             SemNP anything = new SemNP();
             anything.noun = AIKit_Grammar.EntryFor("anything");
+            anything.qt = original.GetAliases()[0].qt;
             hyponyms.Add(anything);
 
             //add "any" ___ to the list, if this is a noun (we do this instead of using an "is" edge.)
@@ -821,10 +902,58 @@ namespace AIKit
             hyponyms = hyponyms.Distinct().ToList();
 
             //Debug.LogError("Found " + string.Join("/",hyponyms));
+            hyponyms.ForEach((np) => { np.qt = thisNodesName.qt; });
             return hyponyms;
         }
 
         public List<SemSentence> GetSentencesThatEntail(SemSentence original) {
+            if (original.IsImplication())
+            {
+                SemImplication imp = original as SemImplication;
+                List<SemSentence> sentencesThatEntailAnt = GetSentencesThatEntail(imp.antecedent);
+                List<SemSentence> sentencesThatEntailCon = GetSentencesThatEntail(imp.consequent);
+                List<SemSentence> sentences = new List<SemSentence>();
+                foreach (SemSentence eant in sentencesThatEntailAnt)
+                {
+                    foreach (SemSentence econ in sentencesThatEntailCon)
+                    {
+                        sentences.Add(new SemImplication { antecedent=eant, consequent=econ });
+                    }
+                }
+                sentences.ForEach((s) => s.MakeQuote());
+                return sentences;
+            }
+            else if (original.IsCompound())
+            {
+                SemCompound comp = original as SemCompound;
+                List<SemSentence> sentencesThatEntailS1 = GetSentencesThatEntail(comp.s1);
+                List<SemSentence> sentencesThatEntailS2 = GetSentencesThatEntail(comp.s2);
+                List<SemSentence> sentences = new List<SemSentence>();
+                foreach (SemSentence es1 in sentencesThatEntailS1)
+                {
+                    foreach (SemSentence es2 in sentencesThatEntailS2)
+                    {
+                        sentences.Add(new SemCompound { s1 = es1, s2 = es2, conj = comp.conj });
+                    }
+                }
+
+                //TODO:use logic rules instead of this
+                if (comp.conj.WordEquals("or"))
+                {
+                    sentences.AddRange(sentencesThatEntailS1);
+                    sentences.AddRange(sentencesThatEntailS2);
+                }
+
+                sentences.ForEach((s) => s.MakeQuote());
+                return sentences;
+            }
+
+            bool q = original.IsQuoted();
+            if (q)
+            {
+                original.MakeLiteral();
+            }
+
             List<SemSentence> entailingSentences = new List<SemSentence>();
 
             SemNP subject = original.np;
@@ -870,6 +999,11 @@ namespace AIKit
                 }
             }
 
+            if (q)
+            {
+                entailingSentences.ForEach((s) => s.MakeQuote());
+            }
+
             return entailingSentences;
         }
 
@@ -878,6 +1012,53 @@ namespace AIKit
         }
 
         public List<SemSentence> GetSentencesEntailedBy(SemSentence original) {
+            if (original.IsImplication())
+            {
+                SemImplication imp = original as SemImplication;
+                List<SemSentence> sentencesEntailedByAnt = GetSentencesEntailedBy(imp.antecedent);
+                List<SemSentence> sentencesEntailedByCon = GetSentencesEntailedBy(imp.consequent);
+                List<SemSentence> sentences = new List<SemSentence>();
+                foreach (SemSentence eant in sentencesEntailedByAnt)
+                {
+                    foreach (SemSentence econ in sentencesEntailedByCon)
+                    {
+                        sentences.Add(new SemImplication { antecedent = eant, consequent = econ });
+                    }
+                }
+
+                sentences.ForEach((s) => s.MakeQuote()); //todo: only top layer needs to do this
+                return sentences;
+            }
+            else if (original.IsCompound())
+            {
+                SemCompound comp = original as SemCompound;
+                List<SemSentence> sentencesEntailedByS1 = GetSentencesEntailedBy(comp.s1);
+                List<SemSentence> sentencesEntailedByS2 = GetSentencesEntailedBy(comp.s2);
+                List<SemSentence> sentences = new List<SemSentence>();
+                foreach (SemSentence es1 in sentencesEntailedByS1)
+                {
+                    foreach (SemSentence es2 in sentencesEntailedByS2)
+                    {
+                        sentences.Add(new SemCompound { s1 = es1, s2 = es2, conj = comp.conj });
+                    }
+                }
+
+                //TODO:use logic rules instead of this
+                if (comp.conj.WordEquals("and")) {
+                    sentences.AddRange(sentencesEntailedByS1);
+                    sentences.AddRange(sentencesEntailedByS2);
+                }
+
+                sentences.ForEach((s) => s.MakeQuote());
+                return sentences;
+            }
+
+            bool q = original.IsQuoted();
+            if (q)
+            {
+                original.MakeLiteral();
+            }
+
             List<SemSentence> entailedSentences = new List<SemSentence>();
 
             SemNP subject = original.np;
@@ -924,7 +1105,12 @@ namespace AIKit
                     }
                 }
             }
-            
+
+            if (q)
+            {
+                entailedSentences.ForEach((s) => s.MakeQuote());
+            }
+
             return entailedSentences;
         }
 
@@ -1124,7 +1310,6 @@ namespace AIKit
 
     public class SemanticWebNode {
         GameObject referent;
-        SemSentence sentencialReferent;
 
         string nounOrSentence;
         List<LexicalEntry> adjectives;
@@ -1132,27 +1317,23 @@ namespace AIKit
         Dictionary<LexicalEntry, List<SemanticWebEdge>> incomingEdges;
         Dictionary<LexicalEntry, List<SemanticWebEdge>> outgoingEdges;
         public bool some, any;
-        public SemanticWebNode(object nporsentence) {
+        public SemanticWebNode(SemNP np) {
             this.incomingEdges = new Dictionary<LexicalEntry, List<SemanticWebEdge>>();
             this.outgoingEdges = new Dictionary<LexicalEntry, List<SemanticWebEdge>>();
-            this.sentencialReferent = nporsentence as SemSentence;
             this.aliases = new List<SemNP>();
             this.adjectives = new List<LexicalEntry>();
             this.some = false;
             this.any = false;
-            SemNP np = nporsentence as SemNP;
-            if (!(np is null)) {
-                this.referent = np.noun.GetReferent();
-                this.nounOrSentence = np.ToString();
-                if (np.noun.WordEquals("something") || (!(np.determiner is null) && np.determiner.WordEquals("some"))) {
-                    this.some = true;
-                }
-                if (np.noun.WordEquals("anything") || (!(np.determiner is null) && np.determiner.WordEquals("any"))) {
-                    this.any = true;
-                }
-                this.AddAdjectives(np.adjectives);
-                this.AddAlias(np);
+            this.referent = np?.noun.GetReferent();
+            this.nounOrSentence = np.ToString();
+            if (np.noun.WordEquals("something") || (!(np.determiner is null) && np.determiner.WordEquals("some"))) {
+                this.some = true;
             }
+            if (np.noun.WordEquals("anything") || (!(np.determiner is null) && np.determiner.WordEquals("any"))) {
+                this.any = true;
+            }
+            this.AddAdjectives(np.adjectives);
+            this.AddAlias(np);
         }
 
         public List<SemanticWebNode> TraverseEdge(LexicalEntry s) {
@@ -1272,14 +1453,14 @@ namespace AIKit
     }
 
     public class LexicalMemoryEntry : IComparable<string> {
-        public string nporSentence;
+        public string np;
         public SemanticWebNode node;
         public LexicalMemoryEntry(SemanticWebNode n) {
-            this.nporSentence = n.GetString();
+            this.np = n.GetString();
             this.node = n;
         }
         public int CompareTo(string key) {
-            return this.nporSentence.ToString().CompareTo(key);
+            return this.np.CompareTo(key);
         }
         public void Ingest(LexicalMemoryEntry lme) {
             //Nothing atm.
@@ -1307,146 +1488,119 @@ namespace AIKit
             SemanticWebNode thingNode = this.GetOrInsert(thing);
         }
 
-        /*LexicalMemoryEntry GetEntry(string key) {
-            LexicalMemoryEntry lme = null;
-            entries.TryGetValue(key, out lme);
-            return lme;
-        }*/
-
-        public SemanticWebNode GetAnythingNode() {
-            if (this.anythingNode is null) 
-            {
-                SemNP anything = new SemNP();
-                anything.noun = AIKit_Grammar.EntryFor("anything");
-                this.anythingNode = this.GetOrInsert(anything);
-            }
-
-            return this.anythingNode;
-        }
-
-        SemanticWebNode GetSomethingNode() {
-            throw new NotImplementedException();
-        }
-
-        public SemanticWebNode GetOrInsert(object nporsentence) {
-
+        //given semNP, return matching node (TODO: handle multi matches better)
+        public SemanticWebNode GetOrInsert(SemNP np) {
 
             List<LexicalMemoryEntry> matches = null;
-            if (entries.TryGetValue(nporsentence.ToString(), out matches)) {
+            if (entries.TryGetValue(np.ToString(), out matches)) {
                 //merge?
-
-                //sentences should only ever have one instance so we should only have 1 match here!
-                if (!((nporsentence as SemSentence) is null)) return matches[0].node;
-
-                //if not then obj should rly be a np, but im not gonna check for it rn i'll just assume it
 
                 //return the first match. FUTURE TODO: return the most salient? or the whole list?
                 foreach(LexicalMemoryEntry m in matches) {
-                    if (m.node.MatchesAdjectives((nporsentence as SemNP).adjectives)) return m.node;
+                    if (m.node.MatchesAdjectives(np.adjectives))
+                    {
+                        //Debug.LogWarning("Node found: "+np.ToString()+" matched " +m.node.GetString());
+                        return m.node;
+                    }
                 }
                 //lme.Ingest(le);
             }
 
-            SemanticWebNode newNode = new SemanticWebNode(nporsentence); //new node created and it has this as an alias
-            
-            //for non sentential objects, these existence rules apply
-            
-            SemNP np = nporsentence as SemNP;
-            if (!(np is null)) {
+            SemanticWebNode newNode = new SemanticWebNode(np); //new node created and it has this as an alias
 
-                if (!(np.determiner is null) && !np.determiner.WordEquals("some") && !np.determiner.WordEquals("any")) {
-                    //concept of "some thing" should be created if it doesn't exist. Then add the edge
-                    if (!np.determiner.WordEquals("some")) {
-                        SemNP something = new SemNP();
-                        something.noun = new LexicalEntry(np.noun);
-                        something.noun.AffixReferent(null); //remove referent as this is abstract
-                        something.determiner = AIKit_Grammar.EntryFor("some");
-                        SemanticWebNode someNode = this.GetOrInsert(something);
-
-                        //our explanation: "a ___ is some ____"
-                        SemSentence why = new SemSentence();
-                        why.np = np;
-                        why.vp = new SemVP();
-                        why.vp.verb = AIKit_Grammar.EntryFor("is");
-                        why.vp.objects.Add(something);
-
-                        //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
-
-                        newNode.AddEdgeTo(why.vp.verb, someNode, new Sentence(why), 0.5f);
-                    }
-
-                    //concept of "any thing" should be created if it doesn't exist. [[Then add the edge.]]] actuallyy...... this has the same porblem as the other anything edges... so... maybe not?
-                    if (!np.determiner.WordEquals("any")) {
-                        SemNP anything = new SemNP();
-                        anything.noun = new LexicalEntry(np.noun);
-                        anything.noun.AffixReferent(null); //remove referent as this is abstract
-                        anything.determiner = AIKit_Grammar.EntryFor("any");
-                        SemanticWebNode anyNode = this.GetOrInsert(anything);
-
-                        //our explanation: "any ___ is a ____/any ____ is some ____"
-                        SemSentence why = new SemSentence();
-                        why.np = anything;
-                        why.vp = new SemVP();
-                        why.vp.verb = AIKit_Grammar.EntryFor("is");
-                        why.vp.objects.Add(np);
-
-                        //Debug.LogWarning("should add edge indicating that "+anything.ToString()+" is "+np.ToString()+".");
-
-                        //I'll have to infer this... I can't add it. Otherwise I'll see infinite loops
-                        //anyNode.AddEdgeTo(why.vp.verb, newNode, new Sentence(why), 0.5f);
-                    }
-                }
-
-                //"anything" is EVERYTHING
-                //this creates a bug where this is interpreted as actually "anything is everything" in which case all "is" statements i.e. "a monster is a person" were true!
-                //if all I want is for "anything" to be a hyponym of everything then I will implement this in the GetHyponyms function instead of using edges!
-                /*
-                if (!np.noun.WordEquals("thing") && !np.noun.WordEquals("anything") && !np.noun.WordEquals("something")) {
-                    Debug.LogWarning("should add edge indicating that anything is "+np.ToString()+".");
-                    SemNP anything = new SemNP();
-                    anything.noun = AIKit_Grammar.EntryFor("anything");
-                    SemanticWebNode anythingNode = this.GetAnythingNode();
-
-                    //our explanation: "everything is some thing"
-                    SemSentence why = new SemSentence();
-                    why.np = anything;
-                    why.vp = new SemVP();
-                    why.vp.verb = AIKit_Grammar.EntryFor("is");
-                    why.vp.objects.Add(new SemNP());
-                    why.vp.objects[0].noun = AIKit_Grammar.EntryFor("everything");
-
-                    anythingNode.AddEdgeTo(why.vp.verb, newNode, new Sentence(why), 0.5f);
-                }*/
-
-                //EVERYTHING is "something"
-                if (!np.noun.WordEquals("thing") && !np.noun.WordEquals("something") && !np.noun.WordEquals("anything")) {
-                    //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is something.");
+            if (!(np.determiner is null) && !np.determiner.WordEquals("some") && !np.determiner.WordEquals("any")) {
+                //concept of "some thing" should be created if it doesn't exist. Then add the edge
+                if (!np.determiner.WordEquals("some")) {
                     SemNP something = new SemNP();
-                    something.noun = AIKit_Grammar.EntryFor("something");
-                    SemanticWebNode somethingNode = this.GetOrInsert(something);
+                    something.noun = new LexicalEntry(np.noun);
+                    something.noun.AffixReferent(null); //remove referent as this is abstract
+                    something.determiner = AIKit_Grammar.EntryFor("some");
+                    something.qt = np.qt;
+                    SemanticWebNode someNode = this.GetOrInsert(something);
 
-                    //our explanation: "everything is some thing"
+                    //our explanation: "a ___ is some ____"
                     SemSentence why = new SemSentence();
-                    why.np = new SemNP();
-                    why.np.noun = AIKit_Grammar.EntryFor("everything");
+                    why.np = np;
                     why.vp = new SemVP();
                     why.vp.verb = AIKit_Grammar.EntryFor("is");
                     why.vp.objects.Add(something);
 
-                    newNode.AddEdgeTo(why.vp.verb, somethingNode, new Sentence(why), 0.5f);
+                    //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
+
+                    newNode.AddEdgeTo(why.vp.verb, someNode, new Sentence(why), 0.5f);
                 }
 
+                //concept of "any thing" should be created if it doesn't exist. [[Then add the edge.]]] actuallyy...... this has the same porblem as the other anything edges... so... maybe not?
+                if (!np.determiner.WordEquals("any")) {
+                    SemNP anything = new SemNP();
+                    anything.noun = new LexicalEntry(np.noun);
+                    anything.noun.AffixReferent(null); //remove referent as this is abstract
+                    anything.determiner = AIKit_Grammar.EntryFor("any");
+                    SemanticWebNode anyNode = this.GetOrInsert(anything);
+
+                    //our explanation: "any ___ is a ____/any ____ is some ____"
+                    SemSentence why = new SemSentence();
+                    why.np = anything;
+                    why.vp = new SemVP();
+                    why.vp.verb = AIKit_Grammar.EntryFor("is");
+                    why.vp.objects.Add(np);
+
+                    //Debug.LogWarning("should add edge indicating that "+anything.ToString()+" is "+np.ToString()+".");
+
+                    //I'll have to infer this... I can't add it. Otherwise I'll see infinite loops
+                    //anyNode.AddEdgeTo(why.vp.verb, newNode, new Sentence(why), 0.5f);
+                }
+            }
+
+            //"anything" is EVERYTHING
+            //this creates a bug where this is interpreted as actually "anything is everything" in which case all "is" statements i.e. "a monster is a person" were true!
+            //if all I want is for "anything" to be a hyponym of everything then I will implement this in the GetHyponyms function instead of using edges!
+            /*
+            if (!np.noun.WordEquals("thing") && !np.noun.WordEquals("anything") && !np.noun.WordEquals("something")) {
+                Debug.LogWarning("should add edge indicating that anything is "+np.ToString()+".");
+                SemNP anything = new SemNP();
+                anything.noun = AIKit_Grammar.EntryFor("anything");
+                SemanticWebNode anythingNode = this.GetAnythingNode();
+
+                //our explanation: "everything is some thing"
+                SemSentence why = new SemSentence();
+                why.np = anything;
+                why.vp = new SemVP();
+                why.vp.verb = AIKit_Grammar.EntryFor("is");
+                why.vp.objects.Add(new SemNP());
+                why.vp.objects[0].noun = AIKit_Grammar.EntryFor("everything");
+
+                anythingNode.AddEdgeTo(why.vp.verb, newNode, new Sentence(why), 0.5f);
+            }*/
+
+            //EVERYTHING is "something"
+            if (!np.noun.WordEquals("thing") && !np.noun.WordEquals("something") && !np.noun.WordEquals("anything")) {
+                //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is something.");
+                SemNP something = new SemNP();
+                something.noun = AIKit_Grammar.EntryFor("something");
+                something.qt = np.qt;
+                SemanticWebNode somethingNode = this.GetOrInsert(something);
+
+                //our explanation: "everything is some thing"
+                SemSentence why = new SemSentence();
+                why.np = new SemNP();
+                why.np.noun = AIKit_Grammar.EntryFor("everything");
+                why.vp = new SemVP();
+                why.vp.verb = AIKit_Grammar.EntryFor("is");
+                why.vp.objects.Add(something); //TODO: should be literal.
+
+                newNode.AddEdgeTo(why.vp.verb, somethingNode, new Sentence(why), 0.5f);
             }
 
             LexicalMemoryEntry lme = new LexicalMemoryEntry(newNode);
-            if (entries.ContainsKey(nporsentence.ToString())) {
-                entries[nporsentence.ToString()].Add(lme);
+            if (entries.ContainsKey(np.ToString())) {
+                entries[np.ToString()].Add(lme);
             }
             else {
-                entries.Add(nporsentence.ToString(),new List<LexicalMemoryEntry>() {lme});
+                entries.Add(np.ToString(),new List<LexicalMemoryEntry>() {lme});
             }
 
-            Debug.LogWarning("First occurrence of "+nporsentence.ToString()+", creatied node: "+NodeInfo(newNode, null));
+            Debug.LogWarning("First occurrence of "+np.ToString()+", created node: "+NodeInfo(newNode, null));
 
             return lme.node;
         }
@@ -1481,6 +1635,17 @@ namespace AIKit
             }
 
             return output+"-----------------------\n";
+        }
+
+        public List<SemanticWebNode> GetAllNodes()
+        {
+            List<SemanticWebNode> allNodes = new List<SemanticWebNode>();
+            foreach (List<LexicalMemoryEntry> val in this.entries.Values.ToList())
+            {
+                allNodes.AddRange(val.ConvertAll((lme) => lme.node));
+            }
+            allNodes = allNodes.Distinct().ToList();
+            return allNodes;
         }
 
         public string NodeInfo(SemanticWebNode N, List<SemanticWebNode> AllNodes) {
