@@ -62,9 +62,7 @@ namespace AIKit
                 //is it an implication?
                 if (root.IsImplication())
                 {
-                    Debug.LogError("BEFORE LEARNRULE: "+ s.GetSemantics().ToString());
                     this.LearnRule(s);
-                    Debug.LogError("AFTER LEARNRULE: " + s.GetSemantics().ToString());
 
                     SemImplication imp = root as SemImplication;
 
@@ -585,39 +583,54 @@ namespace AIKit
 
         //GOAP
 
-        public void LearnRule(Sentence s) {
+        public void LearnRule(Sentence s)
+        {
             SemImplication rule = s.GetSemantics() as SemImplication;
-            rule.MakeLiteral();
-
             if (rule is null) return;
+            rule.MakeLiteral();
+            Debug.LogError("Learning Rule: " + rule.ToString());
+            this.ruleSet.Add(rule); //save the rule along with pronouns... verbatim
+            LearnRule(rule.antecedent, rule.consequent);
+            rule.MakeQuote();
+        }
 
-            Debug.LogError ("Learning Rule: " + rule.ToString());
-
-            this.ruleSet.Add(rule); //save the rule along with pronouns...
-
+        public void LearnRule(SemSentence antecedent, SemSentence consequent) {
             //AND... put a map from antecedent to consequent (for "drawing conclusions")
-            SemSentence newAntecedent = AIKit_Grammar.FillPronouns(rule.consequent, rule.antecedent);
+            SemSentence newAntecedent = AIKit_Grammar.FillPronouns(consequent, antecedent);
             Debug.LogError("Pronoun filled antecedent:" + newAntecedent.ToString());
-            SemSentence matchingConsequent = AIKit_Grammar.TakePronouns(rule.antecedent, rule.consequent);
+            SemSentence matchingConsequent = AIKit_Grammar.TakePronouns(antecedent, consequent);
             Debug.LogError("Matching consequent:" + matchingConsequent.ToString());
             if (this.resultsFrom.ContainsKey(newAntecedent)) {
                 this.resultsFrom[newAntecedent].Add(matchingConsequent);
             } else {
                 this.resultsFrom.Add(newAntecedent, new List<SemSentence>() {matchingConsequent});
             }
+            //if antecedent is OR, add some more keys
+            SemCompound compoundAntecedent = newAntecedent as SemCompound;
+            if (!(compoundAntecedent is null) && compoundAntecedent.conj.WordEquals("or"))
+            {
+                this.LearnRule(compoundAntecedent.s1, matchingConsequent); //recurse bc s1 and s2 may be compounds themselves.
+                this.LearnRule(compoundAntecedent.s2, matchingConsequent);
+            }
+
 
             //also put a map from consequent to antecedent
-            SemSentence newConsequent = AIKit_Grammar.FillPronouns(rule.antecedent, rule.consequent);
+            SemSentence newConsequent = AIKit_Grammar.FillPronouns(antecedent, consequent);
             Debug.LogError("Pronoun filled consequent:" + newConsequent.ToString());
-            SemSentence matchingAntecedent = AIKit_Grammar.TakePronouns(rule.consequent, rule.antecedent);
+            SemSentence matchingAntecedent = AIKit_Grammar.TakePronouns(consequent, antecedent);
             Debug.LogError("Matching antecedent:" + matchingAntecedent.ToString());
             if (this.waysTo.ContainsKey(newConsequent)) {
                 this.waysTo[newConsequent].Add(matchingAntecedent);
             } else {
                 this.waysTo.Add(newConsequent, new List<SemSentence>() {matchingAntecedent});
             }
-
-            rule.MakeQuote();
+            //if consequent is AND, add some more keys
+            SemCompound compoundConsequent = newConsequent as SemCompound;
+            if (!(compoundConsequent is null) && compoundConsequent.conj.WordEquals("and"))
+            {
+                this.LearnRule(matchingAntecedent, compoundConsequent.s1); //recurse bc s1 and s2 may be compounds themselves.
+                this.LearnRule(matchingAntecedent, compoundConsequent.s2);
+            }
         }
 
         public List<SemSentence> GetWaysTo2(SemSentence goal) {

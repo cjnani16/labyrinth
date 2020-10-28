@@ -443,12 +443,12 @@ namespace AIKit
                     np = (parts[1].Item2 as SemNP is null) ? new SemNP{noun = parts[1].Item2 as LexicalEntry} : parts[1].Item2 as SemNP }; }
             );
 
-            //C -> M(then)S
+            //Con -> M(then)S
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.M_then, WordClass.S })] = (WordClass.Con,
                 (product, parts) => { return parts[1].Item2 as SemSentence; }
             );
 
-            //A -> M(if) S
+            //Ant -> M(if) S
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.M_if, WordClass.S })] = (WordClass.Ant,
                 (product, parts) => { return parts[1].Item2 as SemSentence; }
             );
@@ -491,6 +491,16 @@ namespace AIKit
             //S -> S Conj S
             //results in a non-literal/meta sentence. a compound
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.S, WordClass.Conj, WordClass.S })] = (WordClass.S,
+                (product, parts) => {
+                    SemCompound conj = new SemCompound { conj = parts[1].Item2 as LexicalEntry, s1 = parts[0].Item2 as SemSentence, s2 = parts[2].Item2 as SemSentence };
+                    conj.MakeQuote();
+                    return conj;
+                }
+            );
+
+            //Ant -> Ant Conj S
+            //a strange one, but necesary for the compound antecedents to not be ambiguous. TODO: maybe add Con -> Con Conj S
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.Ant, WordClass.Conj, WordClass.S })] = (WordClass.Ant,
                 (product, parts) => {
                     SemCompound conj = new SemCompound { conj = parts[1].Item2 as LexicalEntry, s1 = parts[0].Item2 as SemSentence, s2 = parts[2].Item2 as SemSentence };
                     conj.MakeQuote();

@@ -1,8 +1,5 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
 using System.Linq;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine.UIElements;
@@ -252,19 +249,8 @@ public class TestGraphWindow : EditorWindow
         }
 
         //add edges
-        int i = 0;
         foreach (var bundle in graphViewNodes)
         {
-            var centerX = 300;
-            var centerY = 175;
-            var radius = 1000;
-            var numberOfPoints = graphViewNodes.Count;
-            var theta = 360 / numberOfPoints;
-            var pointX = (radius * Mathf.Cos(theta * i) + centerX);
-            var pointY = (radius * Mathf.Sin(theta * i) + centerY);
-            bundle.Item1.SetPosition(new Rect(pointX, pointY, 200, 100));
-            i++;
-
             foreach (AIKit.SemanticWebEdge edge in bundle.Item2.GetEdges())
             {
                 Debug.Log(bundle.Item1.outputContainer.childCount);
@@ -272,11 +258,62 @@ public class TestGraphWindow : EditorWindow
                 Port inPort = graphViewNodes.First<(TestNodeElement, AIKit.SemanticWebNode)>((b) => { return b.Item2 == edge.to; }).Item1.inputContainer[0] as Port;
                 Edge e = outPort.ConnectTo(inPort);
                 e.name = edge.word.ToString();
-
                 graphView.AddElement(e);
             }
             
         }
+
+        //layout using MSAGL
+        ApplyMSAGLPosition(graphViewNodes);
+    }
+
+    private static void ApplyMSAGLPosition(List<(TestNodeElement, AIKit.SemanticWebNode)> graphViewNodes)
+    {
+        Microsoft.Msagl.Core.Layout.GeometryGraph graph = new Microsoft.Msagl.Core.Layout.GeometryGraph();
+
+        //store semanticwebnode + msagl node
+        List<(Microsoft.Msagl.Core.Layout.Node, AIKit.SemanticWebNode)> nodePairs = new List<(Microsoft.Msagl.Core.Layout.Node, AIKit.SemanticWebNode)>();
+
+        //place all nodes
+        int n = 0;
+        foreach (var bundle in graphViewNodes)
+        {
+            Debug.Log("MSAGL Loading node " + (n++) + "...");
+            Microsoft.Msagl.Core.Layout.Node msNode = new Microsoft.Msagl.Core.Layout.Node();
+            msNode.UserData = bundle.Item2;
+            graph.Nodes.Add(msNode);
+            nodePairs.Add((msNode, bundle.Item2));
+        }
+
+        //add edges
+        foreach (var node in graph.Nodes)
+        {
+            foreach (AIKit.SemanticWebEdge edge in (node.UserData as AIKit.SemanticWebNode).GetEdges())
+            {
+                Microsoft.Msagl.Core.Layout.Node target = graph.FindNodeByUserData(edge.to);
+                Microsoft.Msagl.Core.Layout.Edge e = new Microsoft.Msagl.Core.Layout.Edge(node, target);
+                node.AddOutEdge(e);
+                target.AddInEdge(e);
+                graph.Edges.Add(e);
+            }
+        }
+
+        //calc layout, apply positions to original TestNodeElements
+        var settings = new Microsoft.Msagl.Prototype.Ranking.RankingLayoutSettings();
+        Microsoft.Msagl.Miscellaneous.LayoutHelpers.CalculateLayout(graph, settings, null);
+
+        // Move model to positive axis.
+        graph.UpdateBoundingBox();
+        graph.Translate(new Microsoft.Msagl.Core.Geometry.Point(-graph.Left, -graph.Bottom));
+
+        // Update node position.
+        foreach (var node in graph.Nodes)
+        {
+            Node graphViewNode = graphViewNodes.Find((b) => { return b.Item2 == (node.UserData as AIKit.SemanticWebNode); }).Item1;
+            graphViewNode.SetPosition(new Rect((float)node.BoundingBox.Center.X, (float)node.BoundingBox.Center.Y, 10, 10));
+        }
+
+
     }
 
     //Placeholder functions

@@ -175,14 +175,13 @@ namespace AIKit
         {
             return false;
         }
-        public void MakeQuote()
+        virtual public void MakeQuote()
         {
             MakeQuote(QuoteType.Start);
         }
         virtual public void MakeQuote(QuoteType qt)
         {
             this.quoted = true;
-            this.np.qt = qt == QuoteType.Start ? QuoteType.Start : QuoteType.Mid;
 
             if (qt == QuoteType.Start || qt == QuoteType.Mid)
             {
@@ -195,6 +194,8 @@ namespace AIKit
                     s.MakeQuote(QuoteType.Mid);
                 }
             }
+
+            this.np.qt = qt == QuoteType.Start ? QuoteType.Start : QuoteType.Mid;
 
             //add the end if thre are no sentence objects
             if (qt == QuoteType.Start || qt == QuoteType.End) {
@@ -240,11 +241,11 @@ namespace AIKit
                 return this.vp.objects[this.vp.objects.Count - 1];
             }
 
-            return this.np;
+            return new SemNP(this.np);
         }
         virtual public SemNP GetFirstNP()
         {
-            return this.np;
+            return new SemNP(this.np);
         }
 
         public SemSentence() {
@@ -286,9 +287,10 @@ namespace AIKit
             Debug.Log("Comparing" + a.ToString() + " and " + b.ToString());
 
             //if they're implications, then do something different
-            SemImplication ai = a as SemImplication;
-            SemImplication bi = b as SemImplication;
-            if (!(ai is null) && !(bi is null)) {
+            if (a.IsImplication() && b.IsImplication()) {
+                SemImplication ai = a as SemImplication;
+                SemImplication bi = b as SemImplication;
+
                 Debug.Log("\tboth implications!");
                 if (ai.consequent != bi.consequent) {
                     Debug.Log("false-- consequent mismatch");
@@ -301,11 +303,38 @@ namespace AIKit
                 return true;
             }
             //if one is and one isn't then they are inequal
-            else if ((ai is null) != (bi is null)) {
+            else if (a.IsImplication() != b.IsImplication()) {
                 Debug.Log("\tfalse--implicaiton vs non-implication!");
                 return false;
             }
             //else continue, neither is an implication.
+
+            //if theyr'e both compounds, do something different
+            if (a.IsCompound() && b.IsCompound())
+            {
+                SemCompound ac = a as SemCompound;
+                SemCompound bc = b as SemCompound;
+
+                Debug.Log("\tboth implications!");
+                if (ac.s1 != bc.s1)
+                {
+                    Debug.Log("false-- s1 mismatch");
+                    return false;
+                }
+                if (ac.s2 != bc.s2)
+                {
+                    Debug.Log("false-- s2 mismatch");
+                    return false;
+                }
+                return true;
+            }
+            //if one is and one isn't then they are inequal
+            else if (a.IsCompound() != b.IsCompound())
+            {
+                Debug.Log("\tfalse--compoun vs non-compound!");
+                return false;
+            }
+            //else continue, neither is a compound
 
             //Debug.Log("Equals operator between "+a.ToString() +" and  "+b.ToString());
             try {
@@ -368,6 +397,10 @@ namespace AIKit
         {
             return false;
         }
+        public override void MakeQuote()
+        {
+            MakeQuote(QuoteType.Start);
+        }
         public override void MakeQuote(QuoteType qt)
         {
             this.quoted = true;
@@ -376,7 +409,7 @@ namespace AIKit
                 antecedent.MakeQuote(QuoteType.Mid);
                 if (qt == QuoteType.Start)
                 {
-                    antecedent.np.qt = QuoteType.Start;
+                    antecedent.MakeQuote(QuoteType.Start);
                 }
                 consequent.MakeQuote(QuoteType.Mid);
             }
@@ -429,7 +462,10 @@ namespace AIKit
         {
             return true;
         }
-
+        public override void MakeQuote()
+        {
+            MakeQuote(QuoteType.Start);
+        }
         public override void MakeQuote(QuoteType qt)
         {
             this.quoted = true;
@@ -438,7 +474,7 @@ namespace AIKit
                 s1.MakeQuote(QuoteType.Mid);
                 if (qt == QuoteType.Start)
                 {
-                    s1.np.qt = QuoteType.Start;
+                    s1.MakeQuote(QuoteType.Start);
                 }
                 s2.MakeQuote(QuoteType.Mid);
             }
