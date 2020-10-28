@@ -178,6 +178,7 @@ namespace AIKit
         virtual public void MakeQuote()
         {
             MakeQuote(QuoteType.Start);
+            MakeQuote(QuoteType.End);
         }
         virtual public void MakeQuote(QuoteType qt)
         {
@@ -198,7 +199,7 @@ namespace AIKit
             this.np.qt = qt == QuoteType.Start ? QuoteType.Start : QuoteType.Mid;
 
             //add the end if thre are no sentence objects
-            if (qt == QuoteType.Start || qt == QuoteType.End) {
+            if (qt == QuoteType.End) {
                 if (vp.sentenceObjects.Count > 0)
                 {
                     vp.sentenceObjects[vp.sentenceObjects.Count - 1].MakeQuote(QuoteType.End);

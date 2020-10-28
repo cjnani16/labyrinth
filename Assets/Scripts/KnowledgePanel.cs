@@ -199,8 +199,6 @@ public class TestGraphWindow : EditorWindow
     {
         rootVisualElement.Clear();
 
-        //if (graphObject.graphs.Length == 0) { graphObject.graphs = new TestGraph[1]; graphObject.graphs[0] = new TestGraph(); }
-
         TestGraphView graphView = new TestGraphView() { name = "Semantic Web", viewDataKey = "TestGraphView", graph = graphObject };
 
         graphView.SetupZoom(0.05f, ContentZoomer.DefaultMaxScale);
@@ -223,51 +221,91 @@ public class TestGraphWindow : EditorWindow
 
         //place all nodes
         int n = 0;
-        List<(TestNodeElement, AIKit.SemanticWebNode)> graphViewNodes = new List<(TestNodeElement, AIKit.SemanticWebNode)>();
-
-        foreach (AIKit.SemanticWebNode eNode in graphObject.GetAllNodes())
+        foreach (AIKit.SemanticWebNode semanticWebNode in graphObject.GetAllNodes())
         {
-            Debug.Log("Loading node " + (n++) + "...");
-            TestNodeElement exampleNode = new TestNodeElement(eNode) { name = eNode.GetAliases()[0].ToString() };
+            //Debug.Log("Loading node " + (n++) + "...");
+            TestNodeElement newGraphNode = new TestNodeElement(semanticWebNode) { name = semanticWebNode.GetAliases()[0].ToString() };
+            
 
-            var port = exampleNode.InstantiatePort(Orientation.Horizontal, Direction.Output, Port.Capacity.Multi, typeof(float));
-            port.portName = "Out";
-            exampleNode.inputContainer.Add(port);
+            //var port2 = newGraphNode.InstantiatePort(Orientation.Vertical, Direction.Input, Port.Capacity.Multi, typeof(float));
+            //port2.portName = "In";
+            //newGraphNode.outputContainer.Add(port2);
 
-            var port2 = exampleNode.InstantiatePort(Orientation.Horizontal, Direction.Input, Port.Capacity.Multi, typeof(float));
-            port2.portName = "In";
-            exampleNode.outputContainer.Add(port2);
+            //var port = newGraphNode.InstantiatePort(Orientation.Vertical, Direction.Output, Port.Capacity.Multi, typeof(float));
+            //port.portName = "Out";
+            //newGraphNode.inputContainer.Add(port);
 
-            exampleNode.RefreshExpandedState();
-            exampleNode.RefreshPorts();
+            newGraphNode.userData = semanticWebNode;
 
-            graphView.AddElement(exampleNode);
-            exampleNode.InitializeNode();
+            newGraphNode.RefreshExpandedState();
+            newGraphNode.RefreshPorts();
+
+            graphView.AddElement(newGraphNode);
+            newGraphNode.InitializeNode();
             rootVisualElement.MarkDirtyRepaint();
-
-            graphViewNodes.Add((exampleNode, eNode));
         }
 
         //add edges
-        foreach (var bundle in graphViewNodes)
+        foreach (var graphNode in graphView.nodes.ToList())
         {
-            foreach (AIKit.SemanticWebEdge edge in bundle.Item2.GetEdges())
+            AIKit.SemanticWebNode semanticWebNode = graphNode.userData as AIKit.SemanticWebNode;
+
+            foreach (AIKit.SemanticWebEdge edge in semanticWebNode.GetEdges())
             {
-                Debug.Log(bundle.Item1.outputContainer.childCount);
-                Port outPort = bundle.Item1.outputContainer[0] as Port;
-                Port inPort = graphViewNodes.First<(TestNodeElement, AIKit.SemanticWebNode)>((b) => { return b.Item2 == edge.to; }).Item1.inputContainer[0] as Port;
+                if (edge.to is null)
+                {
+                    Debug.LogError("Edge '" + edge.from.GetAliases()[0] + " " + edge.word.ToString() + "' has no 'to' node.");
+                    continue;
+                }
+
+                string outPortName = edge.word.ToString() + "->";
+                Port outPort = graphNode.outputContainer.Q<Port>(name: outPortName);
+                if (outPort is null)
+                {
+                    outPort = graphNode.InstantiatePort(Orientation.Vertical, Direction.Input, Port.Capacity.Multi, typeof(float));
+                    outPort.portName = outPortName;
+                    outPort.name = outPortName;
+                    graphNode.outputContainer.Add(outPort);
+                }
+                
+
+                Node targetGraphNode = graphView.nodes.ToList().Find((node) =>
+                {
+                    if ((node.userData as AIKit.SemanticWebNode) is null) { Debug.LogError("strange null in userData"); }
+                    Debug.Log("LF: " + (node.userData as AIKit.SemanticWebNode).GetAliases()[0]);
+                    Debug.Log("Found: " + edge.to.GetAliases()[0]);
+                    return node.userData == edge.to;
+                });
+                string inPortName = "->" + edge.word.ToString();
+                Port inPort = targetGraphNode.inputContainer.Q<Port>(name: inPortName);
+                if (inPort is null)
+                {
+                    inPort = targetGraphNode.InstantiatePort(Orientation.Vertical, Direction.Output, Port.Capacity.Multi, typeof(float));
+                    inPort.name = inPortName;
+                    inPort.portName = inPortName;
+                    targetGraphNode.inputContainer.Add(inPort);
+                }
+
                 Edge e = outPort.ConnectTo(inPort);
                 e.name = edge.word.ToString();
+                e.tooltip = edge.from.GetString() + " " + edge.word + " " + edge.to.GetString();
+                e.edgeControl.outputColor = Color.red;
+                e.edgeControl.inputColor = Color.blue;
+
                 graphView.AddElement(e);
             }
-            
+
+            graphNode.RefreshExpandedState();
+            graphNode.RefreshPorts();
+            graphNode.MarkDirtyRepaint();
+            rootVisualElement.MarkDirtyRepaint();
         }
 
         //layout using MSAGL
-        ApplyMSAGLPosition(graphViewNodes);
+        ApplyMSAGLPosition(graphView.nodes.ToList());
     }
 
-    private static void ApplyMSAGLPosition(List<(TestNodeElement, AIKit.SemanticWebNode)> graphViewNodes)
+    private static void ApplyMSAGLPosition(List<Node> graphViewNodes)
     {
         Microsoft.Msagl.Core.Layout.GeometryGraph graph = new Microsoft.Msagl.Core.Layout.GeometryGraph();
 
@@ -276,13 +314,20 @@ public class TestGraphWindow : EditorWindow
 
         //place all nodes
         int n = 0;
-        foreach (var bundle in graphViewNodes)
+        foreach (var node in graphViewNodes)
         {
             Debug.Log("MSAGL Loading node " + (n++) + "...");
-            Microsoft.Msagl.Core.Layout.Node msNode = new Microsoft.Msagl.Core.Layout.Node();
-            msNode.UserData = bundle.Item2;
+
+            Microsoft.Msagl.Core.Layout.Node msNode = new Microsoft.Msagl.Core.Layout.Node(
+
+            Microsoft.Msagl.Core.Geometry.Curves.CurveFactory.CreateRectangle(
+                10,
+                10,
+                new Microsoft.Msagl.Core.Geometry.Point())
+            ,node.userData);
+
             graph.Nodes.Add(msNode);
-            nodePairs.Add((msNode, bundle.Item2));
+            nodePairs.Add((msNode, (node.userData as AIKit.SemanticWebNode)));
         }
 
         //add edges
@@ -291,6 +336,11 @@ public class TestGraphWindow : EditorWindow
             foreach (AIKit.SemanticWebEdge edge in (node.UserData as AIKit.SemanticWebNode).GetEdges())
             {
                 Microsoft.Msagl.Core.Layout.Node target = graph.FindNodeByUserData(edge.to);
+                if (target is null)
+                {
+                    continue;
+                }
+
                 Microsoft.Msagl.Core.Layout.Edge e = new Microsoft.Msagl.Core.Layout.Edge(node, target);
                 node.AddOutEdge(e);
                 target.AddInEdge(e);
@@ -300,6 +350,9 @@ public class TestGraphWindow : EditorWindow
 
         //calc layout, apply positions to original TestNodeElements
         var settings = new Microsoft.Msagl.Prototype.Ranking.RankingLayoutSettings();
+        settings.ScaleX = 750;
+        settings.ScaleY = 750;
+        settings.NodeSeparation = 50;
         Microsoft.Msagl.Miscellaneous.LayoutHelpers.CalculateLayout(graph, settings, null);
 
         // Move model to positive axis.
@@ -309,7 +362,8 @@ public class TestGraphWindow : EditorWindow
         // Update node position.
         foreach (var node in graph.Nodes)
         {
-            Node graphViewNode = graphViewNodes.Find((b) => { return b.Item2 == (node.UserData as AIKit.SemanticWebNode); }).Item1;
+            Node graphViewNode = graphViewNodes.Find((b) => { return (b.userData as AIKit.SemanticWebNode) == (node.UserData as AIKit.SemanticWebNode); });
+            Debug.Log("Moving node " + graphViewNode.name + " to (" + node.BoundingBox.Center.X + "," + node.BoundingBox.Center.X + ")");
             graphViewNode.SetPosition(new Rect((float)node.BoundingBox.Center.X, (float)node.BoundingBox.Center.Y, 10, 10));
         }
 
