@@ -261,9 +261,23 @@ namespace AIKit
             this.vp.objects.Add(new SemNP(obj));
         }
 
-        public SemSentence(SemSentence original) {
-            this.np = new SemNP(original.np);
-            this.vp = new SemVP(original.vp);
+        public static SemSentence NewCopy(SemSentence original) {
+            if (original.IsImplication())
+            {
+                return new SemImplication(original as SemImplication);
+            }
+            if (original.IsCompound())
+            {
+                return new SemCompound(original as SemCompound);
+            }
+
+            SemSentence s = new SemSentence()
+            {
+                np = new SemNP(original.np),
+                vp = new SemVP(original.vp),
+                quoted = original.quoted
+            };
+            return s;
         }
 
         public override string ToString() {
@@ -383,6 +397,12 @@ namespace AIKit
             this.consequent = null;
             this.quoted = false;
         }
+        public SemImplication(SemImplication other)
+        {
+            this.antecedent = SemSentence.NewCopy(other.antecedent);
+            this.consequent = SemSentence.NewCopy(other.consequent);
+            this.quoted = other.quoted;
+        }
         public override string ToString() {
             string str = (this.antecedent is null ? "{NULL}" : antecedent.ToString()) + " implies " + (this.consequent is null ? "{NULL}" : consequent.ToString());
             return str;
@@ -445,6 +465,13 @@ namespace AIKit
             this.s1 = null;
             this.s2 = null;
             this.conj = null;
+        }
+        public SemCompound(SemCompound other)
+        {
+            this.s1 = SemSentence.NewCopy(other.s1);
+            this.s2 = SemSentence.NewCopy(other.s2);
+            this.conj = other.conj;
+            this.quoted = other.quoted;
         }
         public override string ToString()
         {

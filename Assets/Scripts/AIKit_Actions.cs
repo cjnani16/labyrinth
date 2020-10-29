@@ -9,7 +9,7 @@ namespace AIKit
     {
         //Check if the given entity has the ability to do x (the entity's name should be the subject of the sentence in ALL of these, but i dont check for that rn)
         public static bool AbilityCheck(SemSentence action, KnowledgeModule module) {
-            SemSentence abilityCheck = new SemSentence(action);
+            SemSentence abilityCheck = SemSentence.NewCopy(action);
             abilityCheck.vp.verb = AIKit_Grammar.dictionary["can"+action.vp.verb.ToString()];
             if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck, out _)) {
                 Debug.LogError("Ability check is false:" + abilityCheck.ToString());
@@ -67,7 +67,7 @@ namespace AIKit
 
         public static void StepOnTake(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
             Debug.Log("Entity perorms TAKE: "+plan.Peek());
-            SemSentence perform = new SemSentence(plan.Peek());
+            SemSentence perform = SemSentence.NewCopy(plan.Peek());
 
             // Move our position a step closer to the target.
             Transform target = perform.vp.objects[0].noun.GetReferent().transform;

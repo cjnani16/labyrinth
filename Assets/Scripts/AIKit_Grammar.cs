@@ -873,7 +873,8 @@ namespace AIKit
         }
 
         public static SemSentence FillPronouns(SemSentence context, SemSentence sentenceWithPronoun) {
-            SemSentence filled = new SemSentence(sentenceWithPronoun);
+            SemSentence filled = SemSentence.NewCopy(sentenceWithPronoun);
+            if (filled.IsCompound() || filled.IsImplication() || context.IsCompound() || context.IsImplication()) return filled; // TODO: make this work for impl and comp one day
         
             //check if subj is pronoun
             if (filled.np.noun.generativeWordClass == GenerativeWordClass.Deictic) {
@@ -894,8 +895,9 @@ namespace AIKit
         }
 
         public static SemSentence TakePronouns(SemSentence context, SemSentence sentenceToPlace) {
-            SemSentence filled = new SemSentence(sentenceToPlace);
-        
+            SemSentence filled = SemSentence.NewCopy(sentenceToPlace);
+            if (filled.IsCompound() || filled.IsImplication() || context.IsCompound() || context.IsImplication()) return filled; // TODO: make this work for impl and comp one day
+
             //check if subj is pronoun
             if (context.np.noun.generativeWordClass == GenerativeWordClass.Deictic) {
                 filled.np = context.np;
@@ -916,6 +918,7 @@ namespace AIKit
 
         public static SemSentence FillDemonstratives(SemSentence context, SemSentence sentenceWithDemonstrative) {
             SemSentence filled = sentenceWithDemonstrative;
+            if (filled.IsCompound() || filled.IsImplication() || context.IsCompound() || context.IsImplication()) return filled; // TODO: make this work for impl and comp one day
 
             //check if subj is demonstrative
             if (sentenceWithDemonstrative.np.determiner.generativeWordClass == GenerativeWordClass.Demonstratives) {

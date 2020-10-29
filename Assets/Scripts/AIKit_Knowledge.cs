@@ -348,6 +348,7 @@ namespace AIKit
             //does quantification checking and validation on branch objects of a given root (root quantification is handled by parent)
             foreach (SemNP branchObject in branch.objects) {
                 console+="For object "+ branchObject.ToString() +":\n";
+                //TODO: reurns should just continue if this is n't the last object.
                 switch (GetLogicClass(branchObject)) {
                     case LogicClass.Atomic:
                         console+="An atomic object -- only one check.\n";
@@ -399,13 +400,13 @@ namespace AIKit
                         Debug.LogError("Broken Logic Class on object");
                         return false;
                 }
-
-                //if this is intransitive we don't need to check branch objects.
-                console += "Intransitive verb! (no objects) Just checking for edge existence\n";
-                bool ret = DoNodesConnect(rootNode, null, branch.verb, out string a); //No object node!
-                console += a;
-                return ret;
             }
+
+            //if this is intransitive we don't need to check branch objects.
+            console += "Intransitive verb! (no objects) Just checking for edge existence\n";
+            bool ret = DoNodesConnect(rootNode, null, branch.verb, out string a); //No object node!
+            console += a;
+            return ret;
 
             /* TODO: handle sentencial objects differently, the new way
             foreach (SemSentence branchObject in branch.sentenceObjects) {
@@ -419,15 +420,48 @@ namespace AIKit
                 if (!res) return false;
             }
             */
-
-            //if all the objects were satisfied, return true;
-            return true;
         }
 
         public bool isTrue(SemSentence s, out string console){
             console = "";
 
             //implications, compounds, and quotes are validated differently.
+            if (s.IsCompound())
+            {
+                SemCompound com = s as SemCompound;
+                if (com.conj.WordEquals("and"))
+                {
+                    com.MakeLiteral();
+                    string add;
+                    bool s1True = isTrue(com.s1, out add);
+                    console += add;
+                    bool s2True = isTrue(com.s2, out add);
+                    console += add;
+
+                    com.MakeQuote();
+                    return s1True && s2True;
+                }
+                else if (com.conj.WordEquals("or"))
+                {
+                    com.MakeLiteral();
+                    string add;
+                    bool s1True = isTrue(com.s1, out add);
+                    console += add;
+
+                    if (s1True)
+                    {
+                        com.MakeQuote();
+                        return true;
+                    }
+
+                    bool s2True = isTrue(com.s2, out add);
+                    console += add;
+
+                    com.MakeQuote();
+                    return s2True;
+                }
+                //TODO: add a case for "then" that tests temporal sequence.
+            }
             if (s.IsQuoted() || s.IsCompound() || s.IsImplication()) return false;
 
             SemNP root = new SemNP(s.np);
@@ -595,6 +629,8 @@ namespace AIKit
         }
 
         public void LearnRule(SemSentence antecedent, SemSentence consequent) {
+            Debug.LogError("Storing Rule: " + antecedent.ToString() + " => " + consequent.ToString());
+
             //AND... put a map from antecedent to consequent (for "drawing conclusions")
             SemSentence newAntecedent = AIKit_Grammar.FillPronouns(consequent, antecedent);
             Debug.LogError("Pronoun filled antecedent:" + newAntecedent.ToString());
@@ -613,7 +649,7 @@ namespace AIKit
                 this.LearnRule(compoundAntecedent.s2, matchingConsequent);
             }
 
-
+            
             //also put a map from consequent to antecedent
             SemSentence newConsequent = AIKit_Grammar.FillPronouns(antecedent, consequent);
             Debug.LogError("Pronoun filled consequent:" + newConsequent.ToString());
@@ -683,6 +719,28 @@ namespace AIKit
 
         public List<SemSentence> GetWaysTo(SemSentence goal) {
             Debug.LogWarning("Looking for ways to:\t"+goal.ToString());
+            if (goal.IsImplication()) { return new List<SemSentence>(); } //no way to create implications (for nowww)
+            if (goal.IsCompound()) {
+                List<SemSentence> ways = new List<SemSentence>();
+                SemCompound comp = goal as SemCompound;
+                comp.MakeLiteral();
+                if (this.waysTo.ContainsKey(comp))
+                {
+                    ways.AddRange(this.waysTo[comp]);
+                }
+                comp.MakeQuote();
+                if (comp.conj.WordEquals("and"))
+                {
+                    ways.AddRange( GetWaysTo(comp.s1).Intersect(GetWaysTo(comp.s2)).ToList());
+                }
+                else if (comp.conj.WordEquals("or"))
+                {
+                    ways.AddRange( GetWaysTo(comp.s1).Union(GetWaysTo(comp.s2)).Distinct().ToList());
+                }
+                return ways;
+                //TODO: maybe have waysTo "then" sentences, otherwise handle this in plannning.
+            }
+
             List<SemSentence> allWaysTo = new List<SemSentence>();
 
             Debug.Log("waysTo Dictionary content:" + string.Join(", ", this.waysTo.Keys));
@@ -710,7 +768,7 @@ namespace AIKit
 
                 for (int obj_index = 0; obj_index < objMonikers.Count; obj_index++) {
                     foreach (SemNP object_i_Moniker in objMonikers[obj_index]) {
-                        SemSentence aliasedGoal = new SemSentence(goal);
+                        SemSentence aliasedGoal = SemSentence.NewCopy(goal);
                         aliasedGoal.np = subjectMoniker;
                         aliasedGoal.vp.objects[obj_index] = object_i_Moniker;
 
@@ -729,7 +787,7 @@ namespace AIKit
 
                         //if we're talking about ourselves, then one way to make this true is to just DO something. In which case we only need can___
                         if ((goal.np.noun == myName || subjectMoniker.noun == myName) && !aliasedGoal.vp.verb.ToString().StartsWith("can")) { //<--cheap!
-                            SemSentence canAliasedGoal = new SemSentence(aliasedGoal);
+                            SemSentence canAliasedGoal = SemSentence.NewCopy(aliasedGoal);
                             canAliasedGoal.vp.verb = AIKit_Grammar.EntryFor("can" + aliasedGoal.vp.verb.ToString());
                             Debug.LogWarning("Since subject is self, Also checking for ways to "+canAliasedGoal.ToString());
                             if (this.waysTo.ContainsKey(canAliasedGoal)) {
@@ -750,7 +808,7 @@ namespace AIKit
         }
 
         public SemSentence AliasedSentence(SemSentence ogS, List<SemNP> monikers, List<SemNP> originals) {
-            SemSentence originalSentence = new SemSentence(ogS);
+            SemSentence originalSentence = SemSentence.NewCopy(ogS);
 
             for (int i = 0; i < monikers.Count; i++) {
                 SemNP moniker = monikers[i]; 
@@ -826,50 +884,50 @@ namespace AIKit
         }
 
 
-        public List<SemanticWebNode> GetHyponymNodesOf(SemanticWebNode original) {
-            //prior to looking at the oringal SemNP, just use the web edges
-            List<SemanticWebNode> hyponyms = new List<SemanticWebNode>();
-            Stack<SemanticWebNode> nodes = new Stack<SemanticWebNode>();
-            //Debug.LogError("Finding hyponym ndoes of " + lexicalMemory.NodeInfo(original, null));
+        //public List<SemanticWebNode> GetHyponymNodesOf(SemanticWebNode original) {
+        //    //prior to looking at the oringal SemNP, just use the web edges
+        //    List<SemanticWebNode> hyponyms = new List<SemanticWebNode>();
+        //    Stack<SemanticWebNode> nodes = new Stack<SemanticWebNode>();
+        //    //Debug.LogError("Finding hyponym ndoes of " + lexicalMemory.NodeInfo(original, null));
 
-            //dont process incoming is edges on "any" -- fine now because we removed edges from these nodes
-            nodes.Push(original);
+        //    //dont process incoming is edges on "any" -- fine now because we removed edges from these nodes
+        //    nodes.Push(original);
 
-            int limit = 5;
-            while (nodes.Count > 0 && limit > 0) {
-                limit--;
-                List<SemanticWebEdge> allIsEdges = nodes.Pop().GetEdgesRev("is");
-                allIsEdges.ForEach((edge) => { if (!edge.from.some) nodes.Push(edge.from); }); //add some here bc trans shouldn't work on these kinda of words?
-                hyponyms.AddRange(allIsEdges.ConvertAll((edge) => edge.from));
-            }
+        //    int limit = 5;
+        //    while (nodes.Count > 0 && limit > 0) {
+        //        limit--;
+        //        List<SemanticWebEdge> allIsEdges = nodes.Pop().GetEdgesRev("is");
+        //        allIsEdges.ForEach((edge) => { if (!edge.from.some) nodes.Push(edge.from); }); //add some here bc trans shouldn't work on these kinda of words?
+        //        hyponyms.AddRange(allIsEdges.ConvertAll((edge) => edge.from));
+        //    }
 
-            //Get any hypernym and change it to "any" -- that becomes a hypOnym. (...i think)
-            foreach (SemNP hyper in GetHypernymsOf(original)) {
-                if (!(hyper.determiner is null) && !hyper.determiner.WordEquals("any")) {
-                    hyper.determiner = AIKit_Grammar.EntryFor("any");
-                    hyponyms.Add(lexicalMemory.GetOrInsert(hyper));
-                }
-            }
+        //    //Get any hypernym and change it to "any" -- that becomes a hypOnym. (...i think)
+        //    foreach (SemNP hyper in GetHypernymsOf(original)) {
+        //        if (!(hyper.determiner is null) && !hyper.determiner.WordEquals("any")) {
+        //            hyper.determiner = AIKit_Grammar.EntryFor("any");
+        //            hyponyms.Add(lexicalMemory.GetOrInsert(hyper));
+        //        }
+        //    }
 
-            //add "anything" to the list
-            SemNP anything = new SemNP();
-            anything.noun = AIKit_Grammar.EntryFor("anything");
-            anything.qt = original.GetAliases()[0].qt;
-            hyponyms.Add(lexicalMemory.GetOrInsert(anything));
+        //    //add "anything" to the list
+        //    SemNP anything = new SemNP();
+        //    anything.noun = AIKit_Grammar.EntryFor("anything");
+        //    anything.qt = original.GetAliases()[0].qt;
+        //    hyponyms.Add(lexicalMemory.GetOrInsert(anything));
 
-            //add "any" ___ to the list, if this is a noun (we do this instead of using an "is" edge.)
-            SemNP thisNodesName = original.GetAliases()[0];
-            if (!(thisNodesName.determiner is null) && !thisNodesName.determiner.WordEquals("any")) {
-                thisNodesName.determiner = AIKit_Grammar.EntryFor("any");
-                thisNodesName.noun.AffixReferent(null);
-                hyponyms.Add(lexicalMemory.GetOrInsert(anything));
-            }
+        //    //add "any" ___ to the list, if this is a noun (we do this instead of using an "is" edge.)
+        //    SemNP thisNodesName = original.GetAliases()[0];
+        //    if (!(thisNodesName.determiner is null) && !thisNodesName.determiner.WordEquals("any")) {
+        //        thisNodesName.determiner = AIKit_Grammar.EntryFor("any");
+        //        thisNodesName.noun.AffixReferent(null);
+        //        hyponyms.Add(lexicalMemory.GetOrInsert(anything));
+        //    }
 
-            hyponyms = hyponyms.Distinct().ToList();
+        //    hyponyms = hyponyms.Distinct().ToList();
 
-            //Debug.LogError("Found " + string.Join("/",hyponym nodes));
-            return hyponyms;
-        }
+        //    //Debug.LogError("Found " + string.Join("/",hyponym nodes));
+        //    return hyponyms;
+        //}
 
         public List<SemNP> GetHyponymsOf(SemanticWebNode original) {
             //prior to looking at the oringal SemNP, just use the web edges
@@ -1257,7 +1315,7 @@ namespace AIKit
 
                 for (int obj_index = 0; obj_index < objMonikers.Count; obj_index++) {
                     foreach (SemNP object_i_Moniker in objMonikers[obj_index]) {
-                        SemSentence aliasedFact = new SemSentence(fact);
+                        SemSentence aliasedFact = SemSentence.NewCopy(fact);
                         aliasedFact.np = subjectMoniker;
                         aliasedFact.vp.objects[obj_index] = object_i_Moniker;
 
