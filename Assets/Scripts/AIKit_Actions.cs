@@ -11,10 +11,22 @@ namespace AIKit
         public static bool AbilityCheck(SemSentence action, KnowledgeModule module) {
             SemSentence abilityCheck = SemSentence.NewCopy(action);
             abilityCheck.vp.verb = AIKit_Grammar.dictionary["can"+action.vp.verb.ToString()];
-            if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck, out _)) {
+            if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck, out _, false)) {
                 Debug.LogError("Ability check is false:" + abilityCheck.ToString());
                 return false;
             }
+            //some actions require a definite target. like take...
+            if (action.vp.verb.WordEquals("find") ||
+                action.vp.verb.WordEquals("take") ||
+                action.vp.verb.WordEquals("eat"))
+            {
+                if (action.vp.objects.Count < 1 || !action.vp.objects.TrueForAll((obj) => { return !(obj.noun.GetReferent() is null); }))
+                {
+                    Debug.LogError("Ability check is false, no referent:" + abilityCheck.ToString());
+                    return false;
+                }
+            }
+
             return true;
         }
 
@@ -22,7 +34,7 @@ namespace AIKit
             
 
             //check if this is already true (may be wonky that i need to do this)
-            if (entity.knowledgeModule.isTrue(plan.Peek(), out _)) {
+            if (entity.knowledgeModule.isTrue(plan.Peek(), out _, false)) {
                 plan.Pop();
                 return true;
             }
@@ -36,15 +48,15 @@ namespace AIKit
             //Each verb calls its own function for actual per-step behavior;
             LexicalEntry verb = plan.Peek().vp.verb;
 
-            if (verb == AIKit_Grammar.dictionary["find"]) {
+            if (verb.WordEquals("find")) {
                 StepOnFind(ref plan, entity, entityGameObject);
                 return true;
             }
-            if (verb == AIKit_Grammar.dictionary["take"]) {
+            if (verb.WordEquals("take")) {
                 StepOnTake(ref plan, entity, entityGameObject);
                 return true;
             }
-            if (verb == AIKit_Grammar.dictionary["eat"]) {
+            if (verb.WordEquals("eat")) {
                 StepOnEat(ref plan, entity, entityGameObject);
                 return true;
             }
@@ -79,8 +91,15 @@ namespace AIKit
             //lookat target
             entityGameObject.transform.LookAt(target);
 
-            //entity.addMemory(new Sentence(plan.Peek()));
-            //plan.Pop();
+            //take once within x distance
+            if (Vector3.Distance(entityGameObject.transform.position, target.position) < 2)
+            {
+                GameObject.Destroy(target);
+                entity.addMemory(new Sentence(plan.Peek()));
+                plan.Pop();
+            }
+
+
         }
     }
 

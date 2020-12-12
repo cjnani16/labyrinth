@@ -164,9 +164,9 @@ public class TestNodeElement : Node
 
         VisualElement contents = this.Q<VisualElement>("contents");
 
-        Button contentsButton = new Button(() => { Debug.Log("Clicked!"); });
-        contentsButton.text = contentsButton.name = node.ToString();
-        contents.Add(contentsButton);
+        //Button contentsButton = new Button(() => { Debug.Log("Clicked!"); });
+        //contentsButton.text = contentsButton.name = node.ToString();
+        //contents.Add(contentsButton);
         title = name;
 
         SetPosition(new Rect(50, 50, 0, 0));
@@ -187,7 +187,7 @@ public class TestGraphWindow : EditorWindow
     public static void OpenWindow()
     {
         TestGraphWindow wnd = GetWindow<TestGraphWindow>();
-        wnd.titleContent = new GUIContent("Test Graph Window");
+        wnd.titleContent = new GUIContent("Knowledge Graph for " + Selection.activeGameObject.GetComponent<BeAnEntity>().EntityName);
         wnd.graphObject = Selection.activeGameObject.GetComponent<BeAnEntity>().GetSelf().knowledgeModule.lexicalMemory;
         Debug.Log("Oopening knowledge window for " + Selection.activeGameObject.GetComponent<BeAnEntity>().EntityName);
         wnd.CreateElements();
@@ -220,20 +220,9 @@ public class TestGraphWindow : EditorWindow
         gridBackground.SendToBack();
 
         //place all nodes
-        int n = 0;
         foreach (AIKit.SemanticWebNode semanticWebNode in graphObject.GetAllNodes())
         {
-            //Debug.Log("Loading node " + (n++) + "...");
             TestNodeElement newGraphNode = new TestNodeElement(semanticWebNode) { name = semanticWebNode.GetAliases()[0].ToString() };
-            
-
-            //var port2 = newGraphNode.InstantiatePort(Orientation.Vertical, Direction.Input, Port.Capacity.Multi, typeof(float));
-            //port2.portName = "In";
-            //newGraphNode.outputContainer.Add(port2);
-
-            //var port = newGraphNode.InstantiatePort(Orientation.Vertical, Direction.Output, Port.Capacity.Multi, typeof(float));
-            //port.portName = "Out";
-            //newGraphNode.inputContainer.Add(port);
 
             newGraphNode.userData = semanticWebNode;
 
@@ -252,22 +241,23 @@ public class TestGraphWindow : EditorWindow
 
             foreach (AIKit.SemanticWebEdge edge in semanticWebNode.GetEdges())
             {
+                string outPortName = edge.word.ToString() + ((edge.to is null) ? "." : "->");
+                Port outPort = graphNode.outputContainer.Q<Port>(name: outPortName);
+                if (outPort is null)
+                {
+                    outPort = graphNode.InstantiatePort(Orientation.Horizontal, Direction.Output, Port.Capacity.Multi, typeof(float));
+                    outPort.portName = outPortName;
+                    outPort.name = outPortName;
+                    outPort.portColor = Color.green;
+                    graphNode.outputContainer.Add(outPort);
+                }
+
                 if (edge.to is null)
                 {
                     Debug.LogError("Edge '" + edge.from.GetAliases()[0] + " " + edge.word.ToString() + "' has no 'to' node.");
                     continue;
                 }
 
-                string outPortName = edge.word.ToString() + "->";
-                Port outPort = graphNode.outputContainer.Q<Port>(name: outPortName);
-                if (outPort is null)
-                {
-                    outPort = graphNode.InstantiatePort(Orientation.Vertical, Direction.Input, Port.Capacity.Multi, typeof(float));
-                    outPort.portName = outPortName;
-                    outPort.name = outPortName;
-                    graphNode.outputContainer.Add(outPort);
-                }
-                
 
                 Node targetGraphNode = graphView.nodes.ToList().Find((node) =>
                 {
@@ -280,10 +270,17 @@ public class TestGraphWindow : EditorWindow
                 Port inPort = targetGraphNode.inputContainer.Q<Port>(name: inPortName);
                 if (inPort is null)
                 {
-                    inPort = targetGraphNode.InstantiatePort(Orientation.Vertical, Direction.Output, Port.Capacity.Multi, typeof(float));
+                    inPort = targetGraphNode.InstantiatePort(Orientation.Horizontal, Direction.Input, Port.Capacity.Multi, typeof(float));
                     inPort.name = inPortName;
                     inPort.portName = inPortName;
+                    inPort.portColor = Color.red;
                     targetGraphNode.inputContainer.Add(inPort);
+                }
+
+                if (inPort is null || outPort is null)
+                {
+                    Debug.LogError("Underfined target or source node! ...");
+                    Debug.LogError("...for edge "+ edge.from.ToString() + edge.word.ToString() + edge.to.ToString() +"!");
                 }
 
                 Edge e = outPort.ConnectTo(inPort);
@@ -291,6 +288,9 @@ public class TestGraphWindow : EditorWindow
                 e.tooltip = edge.from.GetString() + " " + edge.word + " " + edge.to.GetString();
                 e.edgeControl.outputColor = Color.red;
                 e.edgeControl.inputColor = Color.blue;
+                e.styleSheets.Add(Resources.Load<StyleSheet>("Graph"));
+
+                e.MarkDirtyRepaint();
 
                 graphView.AddElement(e);
             }
@@ -342,17 +342,17 @@ public class TestGraphWindow : EditorWindow
                 }
 
                 Microsoft.Msagl.Core.Layout.Edge e = new Microsoft.Msagl.Core.Layout.Edge(node, target);
-                node.AddOutEdge(e);
-                target.AddInEdge(e);
+                node.AddInEdge(e);
+                target.AddOutEdge(e);
                 graph.Edges.Add(e);
             }
         }
 
         //calc layout, apply positions to original TestNodeElements
-        var settings = new Microsoft.Msagl.Prototype.Ranking.RankingLayoutSettings();
-        settings.ScaleX = 750;
-        settings.ScaleY = 750;
-        settings.NodeSeparation = 50;
+        var settings = new Microsoft.Msagl.Layout.MDS.MdsLayoutSettings();
+        settings.ScaleX = 800;
+        settings.ScaleY = 800;
+        settings.NodeSeparation = 60;
         Microsoft.Msagl.Miscellaneous.LayoutHelpers.CalculateLayout(graph, settings, null);
 
         // Move model to positive axis.

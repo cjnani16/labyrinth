@@ -516,7 +516,7 @@ namespace AIKit
             Stack<ClassSemanticPair> skipped = new Stack<ClassSemanticPair>();
             Stack<ClassSemanticPair> parts = new Stack<ClassSemanticPair>();
 
-            Debug.Log("Validating: " + string.Join(",", tokenStack));
+            //Debug.Log("Validating: " + string.Join(",", tokenStack));
             bool lastAttempt = false;
 
             while (tokenStack.Count > 0)//&& ignoreTail < wordClassStack.Count)
@@ -545,7 +545,7 @@ namespace AIKit
                 }
 
                 string wordClassString = thisWord.ToString();
-                Debug.Log(wordClassString + ", {" + string.Join(",", parts) + "}, " + latestProduct.ToString() + (isnew ? "*" : ""));
+                //Debug.Log(wordClassString + ", {" + string.Join(",", parts) + "}, " + latestProduct.ToString() + (isnew ? "*" : ""));
 
                 //if we fail, skip and try again
                 if (tokenStack.Count == 0 && !isnew && parts.Count > 0)
@@ -553,7 +553,7 @@ namespace AIKit
                     int n = parts.Count;
                     for (int i = 0; i < n; i++) tokenStack.Push(parts.Pop());
                     skipped.Push(tokenStack.Pop()); // remove tail
-                    Debug.Log("Trying again, no tail: " + string.Join(",", tokenStack));
+                    //Debug.Log("Trying again, no tail: " + string.Join(",", tokenStack));
                 }
 
                 //if we've skipped everything, pop all skips and try again... or fail, if we've done this before with no results.
@@ -565,7 +565,7 @@ namespace AIKit
                     {
                         int n = skipped.Count;
                         for (int i = 0; i < n; i++) tokenStack.Push(skipped.Pop());
-                        Debug.Log("Re-added tail: " + string.Join(",", tokenStack));
+                        //Debug.Log("Re-added tail: " + string.Join(",", tokenStack));
                         lastAttempt = true;
                     }
                 }
@@ -573,12 +573,12 @@ namespace AIKit
                 //success! only S remains.
                 if (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S && skipped.Count == 0 && parts.Count == 0)
                 {
-                    Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
+                    //Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
                     return (true, tokenStack.Peek().Item2 as SemSentence);
                 }
             }
 
-            Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
+            //Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
             return (false, null);
         }
 
@@ -877,13 +877,13 @@ namespace AIKit
             if (filled.IsCompound() || filled.IsImplication() || context.IsCompound() || context.IsImplication()) return filled; // TODO: make this work for impl and comp one day
         
             //check if subj is pronoun
-            if (filled.np.noun.generativeWordClass == GenerativeWordClass.Deictic) {
+            if (sentenceWithPronoun.np.noun.generativeWordClass == GenerativeWordClass.Deictic) {
                 filled.np = ReplaceVia(filled.np, context.np);
             }
 
             //check if obj is pronoun
-            for (int i = 0; i < filled.vp.objects.Count; i++) {
-                if (filled.vp.objects[i].noun.generativeWordClass == GenerativeWordClass.Deictic) {
+            for (int i = 0; i < sentenceWithPronoun.vp.objects.Count; i++) {
+                if (sentenceWithPronoun.vp.objects[i].noun.generativeWordClass == GenerativeWordClass.Deictic) {
                     if (context.vp.objects.Count > i)
                         filled.vp.objects[i] = ReplaceVia(filled.vp.objects[i], context.vp.objects[i]);
                     else
@@ -892,6 +892,36 @@ namespace AIKit
             }
 
             return filled;
+        }
+
+        public static SemSentence FillTemplatePronouns(SemSentence sentenceToFill, SemSentence sentenceWithPronouns, SemSentence sentenceWithAntecedents)
+        {
+            Debug.LogError("Filling " + sentenceToFill.ToString() + " with words from " + sentenceWithAntecedents + " from templates " + sentenceWithPronouns);
+
+            SemSentence sToFill = SemSentence.NewCopy(sentenceToFill);
+            if (sentenceToFill.IsCompound() || sentenceToFill.IsImplication() || sentenceWithPronouns.IsCompound() || sentenceWithPronouns.IsImplication() || sentenceWithAntecedents.IsCompound() || sentenceWithAntecedents.IsImplication()) return sToFill; // TODO: make this work for impl and comp one day
+
+            Debug.LogError("Filling sentences all valid!");
+
+            //check if subj is pronoun
+            if (sentenceWithPronouns.np.noun.generativeWordClass == GenerativeWordClass.Deictic)
+            {
+                sToFill.np = ReplaceVia(sentenceWithPronouns.np, sentenceWithAntecedents.np);
+            }
+
+            //check if obj is pronoun
+            for (int i = 0; i < sentenceWithPronouns.vp.objects.Count; i++)
+            {
+                if (sentenceWithPronouns.vp.objects[i].noun.generativeWordClass == GenerativeWordClass.Deictic)
+                {
+                    if (sentenceWithAntecedents.vp.objects.Count > i)
+                        sToFill.vp.objects[i] = ReplaceVia(sentenceWithPronouns.vp.objects[i], sentenceWithAntecedents.vp.objects[i]);
+                    else
+                        sToFill.vp.objects[i] = ReplaceVia(sentenceWithPronouns.vp.objects[i], sentenceWithAntecedents.vp.objects[sentenceWithAntecedents.vp.objects.Count - 1]);
+                }
+            }
+
+            return sToFill;
         }
 
         public static SemSentence TakePronouns(SemSentence context, SemSentence sentenceToPlace) {

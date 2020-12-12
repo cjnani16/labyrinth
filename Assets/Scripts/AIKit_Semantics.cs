@@ -299,27 +299,27 @@ namespace AIKit
         }
 
         public static bool operator ==(SemSentence a, SemSentence b) {
-            Debug.Log("Comparing" + a.ToString() + " and " + b.ToString());
+            //Debug.Log("Comparing" + a.ToString() + " and " + b.ToString());
 
             //if they're implications, then do something different
             if (a.IsImplication() && b.IsImplication()) {
                 SemImplication ai = a as SemImplication;
                 SemImplication bi = b as SemImplication;
 
-                Debug.Log("\tboth implications!");
+                //Debug.Log("\tboth implications!");
                 if (ai.consequent != bi.consequent) {
-                    Debug.Log("false-- consequent mismatch");
+                    //Debug.Log("false-- consequent mismatch");
                     return false;
                 }
                 if (ai.antecedent != bi.antecedent) {
-                    Debug.Log("false-- antecedent mismatch");
+                    //Debug.Log("false-- antecedent mismatch");
                     return false;
                 }
                 return true;
             }
             //if one is and one isn't then they are inequal
             else if (a.IsImplication() != b.IsImplication()) {
-                Debug.Log("\tfalse--implicaiton vs non-implication!");
+                //Debug.Log("\tfalse--implicaiton vs non-implication!");
                 return false;
             }
             //else continue, neither is an implication.
@@ -330,15 +330,15 @@ namespace AIKit
                 SemCompound ac = a as SemCompound;
                 SemCompound bc = b as SemCompound;
 
-                Debug.Log("\tboth implications!");
+                //Debug.Log("\tboth implications!");
                 if (ac.s1 != bc.s1)
                 {
-                    Debug.Log("false-- s1 mismatch");
+                    //Debug.Log("false-- s1 mismatch");
                     return false;
                 }
                 if (ac.s2 != bc.s2)
                 {
-                    Debug.Log("false-- s2 mismatch");
+                    //Debug.Log("false-- s2 mismatch");
                     return false;
                 }
                 return true;
@@ -346,7 +346,7 @@ namespace AIKit
             //if one is and one isn't then they are inequal
             else if (a.IsCompound() != b.IsCompound())
             {
-                Debug.Log("\tfalse--compoun vs non-compound!");
+                //Debug.Log("\tfalse--compoun vs non-compound!");
                 return false;
             }
             //else continue, neither is a compound
@@ -355,20 +355,20 @@ namespace AIKit
             try {
                 if (a.np != b.np) {
                     //Debug.Log("MAN WTF>WEWR" + a.np.noun.ToString() + b.np.noun.ToString());
-                    Debug.Log("\tfalse--subj!");
-                    Debug.Log("subj1 = " + a.np + ", subj2 = " + b.np);
+                    //Debug.Log("\tfalse--subj!");
+                    //Debug.Log("subj1 = " + a.np + ", subj2 = " + b.np);
                     return false;
                 }
                 if (a.vp != b.vp) {
-                    Debug.Log("\tfalse--vp! objects match? " + (Helper.ListFlexMatch(a.vp.objects, b.vp.objects)) + " verbs match? " + (a.vp.verb == b.vp.verb));
+                    //Debug.Log("\tfalse--vp! objects match? " + (Helper.ListFlexMatch(a.vp.objects, b.vp.objects)) + " verbs match? " + (a.vp.verb == b.vp.verb));
                     return false;
                 }
                 return true;
             } catch (System.NullReferenceException e) {
                 Debug.LogError(e);
-                if (!(a is null)) Debug.LogError("^ Tried to compare "+a.ToString());
-                if (!(b is null)) Debug.LogError("^ Tried to compare "+b.ToString());
-                Debug.Log("\tfalse -- null error!");
+                //if (!(a is null)) Debug.LogError("^ Tried to compare "+a.ToString());
+                //if (!(b is null)) Debug.LogError("^ Tried to compare "+b.ToString());
+                //Debug.Log("\tfalse -- null error!");
                 return false;
             }
         }
@@ -382,7 +382,7 @@ namespace AIKit
         {
             //Debug.LogWarning("Hashed " +this.ToString()+" to "+this.ToString().GetHashCode());
             int hash = this.ToString().GetHashCode();
-            Debug.Log("SemSentence " + this.ToString() + " hashed to " + hash);
+            //Debug.Log("SemSentence " + this.ToString() + " hashed to " + hash);
             return hash;
         }
     }
@@ -421,6 +421,7 @@ namespace AIKit
         public override void MakeQuote()
         {
             MakeQuote(QuoteType.Start);
+            MakeQuote(QuoteType.End);
         }
         public override void MakeQuote(QuoteType qt)
         {
@@ -435,7 +436,7 @@ namespace AIKit
                 consequent.MakeQuote(QuoteType.Mid);
             }
 
-            if (qt != QuoteType.Mid)
+            if (qt == QuoteType.End)
             {
                 consequent.MakeQuote(QuoteType.End);
             }
@@ -493,6 +494,7 @@ namespace AIKit
         public override void MakeQuote()
         {
             MakeQuote(QuoteType.Start);
+            MakeQuote(QuoteType.End);
         }
         public override void MakeQuote(QuoteType qt)
         {
@@ -507,7 +509,7 @@ namespace AIKit
                 s2.MakeQuote(QuoteType.Mid);
             }
 
-            if (qt != QuoteType.Mid)
+            if (qt == QuoteType.End)
             {
                 s2.MakeQuote(QuoteType.End);
             }
