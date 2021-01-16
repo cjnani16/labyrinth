@@ -917,7 +917,7 @@ namespace AIKit
 
             SemNP thisNodesName = original.GetAliases()[0];
 
-            //dont process is edges on "some"
+            //dont process is edges on "some" bc theres no guarntee this 'some' is same as other 'somes'
             if (!(original.some || thisNodesName.noun.GetReferent() is null)) {
                 nodes.Push(original);
             }
@@ -930,23 +930,29 @@ namespace AIKit
             if (!original.some) {
                 thisNodesName.determiner = AIKit_Grammar.EntryFor("some");
                 thisNodesName.noun.AffixReferent(null);
+                var thisNodesName2 = new SemNP(thisNodesName)
+                {
+                    determiner = AIKit_Grammar.EntryFor("a")
+                };
 
                 //if this is an 'any', each hypOnym of the 'some'/'a' node is hypER of this
                 if (isAny)
                 {
                     SemanticWebNode someNode = lexicalMemory.GetOrInsert(thisNodesName);
+                    SemanticWebNode aNode = lexicalMemory.GetOrInsert(thisNodesName2);
                     var toAdd = GetHyponymsOf(someNode).Where((np) => !(!(np.determiner is null) && np.determiner.WordEquals("any")));
+                    toAdd = toAdd.Concat(GetHyponymsOf(aNode).Where((np) => !(!(np.determiner is null) && np.determiner.WordEquals("any"))));
                     Debug.Log("Adding hyponyms of someNode to hypernyms for " + original.GetString() + ": " + string.Join("/", toAdd));
                     hypernyms.AddRange(toAdd);
                 }
 
-                //Add a "some" version of the original noun to the list (use an implied "IS" edge)
+                //Add the "some" and "a" versions of the original noun to the list (use an implied "IS" edge)
                 hypernyms.Add(thisNodesName);
+                hypernyms.Add(thisNodesName2);
 
-                
             }
 
-            //also take hypernyms of "any" version of original node
+            //also take hypernyms of "any" version of original node (if this isn't already an any. lol)
             if (!isAny)
             {
                 thisNodesName.determiner = AIKit_Grammar.EntryFor("any");
@@ -1004,15 +1010,13 @@ namespace AIKit
 
             ////Get any hypernym and change it to "any" -- that becomes a hypOnym. (...i think)
             //Debug.Log("Any? " + original.some);
-            //if (!original.any) {
-            //    foreach (SemNP hyper in GetHypernymsOf(original)) {
-            //        if (!(hyper.determiner is null) && !hyper.determiner.WordEquals("any")) {
-            //            Debug.Log("Adding 'any' node for " + hyper.ToString() + " to hyponyms for " + original.GetString() + ")");
-            //            hyper.determiner = AIKit_Grammar.EntryFor("any");
-            //            hyponyms.Add(hyper);
-            //        }
-            //    }
-            //}
+            foreach (SemNP hyper in GetHypernymsOf(original)) {
+                if (!(hyper.determiner is null) && !hyper.determiner.WordEquals("any")) {
+                    Debug.Log("Adding 'any' node for " + hyper.ToString() + " to hyponyms for " + original.GetString() + ")");
+                    hyper.determiner = AIKit_Grammar.EntryFor("any");
+                    hyponyms.Add(hyper);
+                }
+            }
 
             ////add "any thing" to the list
             //SemNP anything = new SemNP();
@@ -1021,7 +1025,7 @@ namespace AIKit
             //anything.qt = original.GetAliases()[0].qt;
             //hyponyms.Add(anything);
 
-            //hyponyms = hyponyms.Distinct().ToList();
+            hyponyms = hyponyms.Distinct().ToList();
 
             Debug.LogError("Hyponyms for node " + original.GetString() + " - Found: " + string.Join("/",hyponyms));
             hyponyms.ForEach((np) => { np.qt = original.GetAliases()[0].qt; });
