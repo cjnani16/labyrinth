@@ -52,6 +52,8 @@ namespace AIKit
                 case QuoteType.Mid: s = "<Q_M>" + s + "</Q_M>"; break;
                 case QuoteType.End: s = "<Q_E>" + s + "</Q_E>"; break;
                 case QuoteType.Invalid: s = "<Q_XXX!>" + s + "</Q_XXX!>"; break;
+                case QuoteType.Literal: break;
+                default: throw new System.Exception("invalid qt in np");
             }
 
             return s;
@@ -67,6 +69,10 @@ namespace AIKit
             //Debug.LogWarning("3");
             if (this.noun != other.noun) return false;
             //Debug.LogWarning("4");
+
+            if (other.determiner is null != this.determiner is null) return false;
+            if (!(this.determiner is null) && this.determiner != other.determiner) return false;
+
             if ((other.adjectives is null) != (this.adjectives is null)) return false;
             //Debug.LogWarning("5");
             return Helper.ListFlexMatch(adjectives, other.adjectives);

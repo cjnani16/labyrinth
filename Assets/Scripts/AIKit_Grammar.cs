@@ -412,7 +412,7 @@ namespace AIKit
 
             //NP -> Name
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.Name })] = (WordClass.NP,
-                (product, parts) => { return new SemNP { noun = parts[0].Item2 as LexicalEntry }; }
+                (product, parts) => { return new SemNP { noun = parts[0].Item2 as LexicalEntry, qt = QuoteType.Invalid }; }
             );
 
             //VP -> Vtr NP
@@ -456,12 +456,14 @@ namespace AIKit
             //S -> NP VP
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.NP, WordClass.VP })] = (WordClass.S,
                 (product, parts) => {
-                    return new SemSentence
+                    SemSentence s = new SemSentence
                     {
                         //NP is FlexLE?
                         np = (parts[0].Item2 as SemNP is null) ? new SemNP { noun = parts[0].Item2 as LexicalEntry } : parts[0].Item2 as SemNP,
                         vp = parts[1].Item2 as SemVP
                     };
+                    s.MakeLiteral();
+                    return s;
                 }
             );
 
@@ -469,12 +471,14 @@ namespace AIKit
             rules[new GrammarTokenList(new List<WordClass>() { WordClass.NP, WordClass.V })] = (WordClass.S,
                 (product, parts) =>
                 {
-                    return new SemSentence
+                    SemSentence s = new SemSentence
                     {
                         //NP is FlexLE?
                         np = (parts[0].Item2 as SemNP is null) ? new SemNP { noun = parts[0].Item2 as LexicalEntry } : parts[0].Item2 as SemNP,
                         vp = new SemVP { verb = parts[1].Item2 as LexicalEntry }
                     };
+                    s.MakeLiteral();
+                    return s;
                 }
             );
 

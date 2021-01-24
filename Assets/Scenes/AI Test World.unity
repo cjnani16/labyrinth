@@ -370,14 +370,12 @@ MonoBehaviour:
   showGrammarConsole: 0
   EntityToTalkTo: {fileID: 1613215435}
   startingSentences:
-  - alena is a person
-  - any monster is a thing
+  - any woman is a person
   - if she take it then any person caneat any thing
-  - if she see it then any person cantake any thing
   - alena is a woman
   givenSentence: 
   givenWord: 
-  givengoal: alena eat a thing
+  givengoal: alena eat some thing
   GivenStatement: 
 --- !u!114 &35014159
 MonoBehaviour:
@@ -1240,7 +1238,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 300}
   m_SizeDelta: {x: 0, y: 300}
   m_Pivot: {x: 0, y: 1}
 --- !u!1 &383358615
