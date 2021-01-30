@@ -983,9 +983,16 @@ namespace AIKit
                         SemNP anyNP = new SemNP(e.from.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
                         return lexicalMemory.GetOrInsert(anyNP);  
                     }
-                    else
+                    else if (e.from.any)
+                    {
+                        SemNP someNP = new SemNP(e.from.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("some") };//any N -> is original entails some N -> is -> original
+                        return lexicalMemory.GetOrInsert(someNP);
+                    }
+                    else 
                     return e.from;
                 }));
+
+            Debug.Log("(1) Hyponyms of: "+original.GetString()+": " + String.Join("&", nodes.ConvertAll(n => n.GetString())));
 
             //if original -> is -> some N /// ((aka any hypernym?))
             // then any N entails original (any N is a hyponym)
@@ -995,12 +1002,16 @@ namespace AIKit
                     return lexicalMemory.GetOrInsert(anyNP);
                 }));
 
+            Debug.Log("(2) Hyponyms of: " + original.GetString() + ": " + String.Join("&", nodes.ConvertAll(n => n.GetString())));
+
             // if some is a hyponym then any is too. // a hammer -> any tool -entails-> a hammer -> some tool 
             if (original.some)
             {
                 SemNP anyNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
                 nodes.Add(lexicalMemory.GetOrInsert(anyNP));
             }
+
+            Debug.Log("(3) Hyponyms of: " + original.GetString() + ": " + String.Join("&", nodes.ConvertAll(n => n.GetString())));
 
 
             List<SemNP> hyponyms = new List<SemNP>();
