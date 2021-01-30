@@ -80,21 +80,21 @@ namespace AIKit {
             List<SemNP> allObjectMonikers = new List<SemNP>();
             foreach (SemNP moniker in apparentNPs) {
                 SemanticWebNode recognizedAs = this.knowledgeModule.lexicalMemory.GetOrInsert(moniker);
-                List<SemNP> monikers = this.knowledgeModule.GetHypernymsOf(recognizedAs);
+                List<SemNP> monikers = this.knowledgeModule.GetHypernyms(recognizedAs);
                 allObjectMonikers.AddRange(monikers);
             }
             allObjectMonikers = allObjectMonikers.Distinct().ToList();
 
             SemNP name_np = new SemNP();
             SemanticWebNode selfNode = this.knowledgeModule.lexicalMemory.GetOrInsert(this.name);
-            List<SemNP> allSubjectMonikers = this.knowledgeModule.GetHypernymsOf(selfNode);
+            List<SemNP> allSubjectMonikers = this.knowledgeModule.GetHypernyms(selfNode);
             foreach (SemNP subject in allSubjectMonikers) {
                 foreach (SemNP obj in allObjectMonikers) {
                     //this.addMemory
                     SemSentence sentence = new SemSentence();
                     sentence.np = subject;
                     sentence.vp = new SemVP();
-                    sentence.vp.verb = AIKit_Grammar.dictionary["nosee"];
+                    sentence.vp.verb = AIKit_Grammar.dictionary["see"];
                     sentence.vp.objects.Add(obj);
 
                     this.knowledgeModule.perceptualFacts.Remove(sentence);

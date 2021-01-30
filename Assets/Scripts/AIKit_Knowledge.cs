@@ -836,14 +836,16 @@ namespace AIKit
             SemanticWebNode subjNode = this.lexicalMemory.GetOrInsert(goal.np);
             List<SemanticWebNode> objNodes = goal.vp.objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
             
-            List<SemNP> subjMonikers = GetHyponymsOf(subjNode);
-            List<List<SemNP>> objMonikers = objNodes.ConvertAll((node) => GetHyponymsOf(node));//goal.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHypernymsOf(node)):objNodes.ConvertAll((node) => GetHyponymsOf(node));
+            List<SemNP> subjMonikers = GetHyponyms(subjNode);
+            List<List<SemNP>> objMonikers = objNodes.ConvertAll((node) => GetHyponyms(node));//goal.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHypernymsOf(node)):objNodes.ConvertAll((node) => GetHyponymsOf(node));
 
+            /* not necessary as hyper/onyms now include self.
             //add the og names
             subjMonikers.Add(goal.np);
             for (int i = 0; i < objMonikers.Count; i++) {
                 objMonikers[i].Add(goal.vp.objects[i]);
             }
+            */
 
             Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
 
@@ -912,154 +914,121 @@ namespace AIKit
             return waysTo;
         }
 
-        public List<SemNP> GetHypernymsOf(SemanticWebNode original) {
-            Debug.Log("Entering GetHypernymsOf ("+original.GetString()+")");
+        public List<SemNP> GetHypernyms(SemanticWebNode original) { List<SemanticWebNode> _ = null; return GetHypernyms(original, ref _); }
+        public List<SemNP> GetHypernyms(SemanticWebNode original, ref List<SemanticWebNode> dni)
+        {
+            //do not loop
+            if (!(dni is null) && dni.Contains(original)) return new List<SemNP>();
 
-            //prior to looking at the oringal SemNP, just use the web edges
-            List<SemNP> hypernyms = new List<SemNP>();
-            Stack<SemanticWebNode> nodes = new Stack<SemanticWebNode>();
-            //Debug.LogError("Finding hypernyms of " + lexicalMemory.NodeInfo(original, null));
+            //get all nodes where original -> is -> N
+            List<SemanticWebNode> nodes = new List<SemanticWebNode>();
+            if (!original.some) nodes.AddRange(original.GetEdges("is").ConvertAll(e => e.to));
 
-            SemNP thisNodesName = original.GetAliases()[0];
-
-            //dont process is edges on "some" bc theres no guarntee this 'some' is same as other 'somes'
-            if (!original.some) {
-                nodes.Push(original);
+            //hypernyms of 'some' are hypernyms of 'any' // some hammer -> a tool -entails-> any hammer -> a tool
+            if (original.any) {
+                SemNP someNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("some") };
+                nodes.Add(lexicalMemory.GetOrInsert(someNP));
             }
 
-
-            Debug.Log("Some? " + original.some);
-            bool isAny = !(thisNodesName.determiner is null) && thisNodesName.determiner.WordEquals("any");
-            Debug.Log("Any? " + isAny);
-
-            if (!original.some) {
-                thisNodesName.determiner = AIKit_Grammar.EntryFor("some");
-                thisNodesName.noun.AffixReferent(null);
-                var thisNodesName2 = new SemNP(thisNodesName)
-                {
-                    determiner = AIKit_Grammar.EntryFor("a")
-                };
-
-                //if this is an 'any', each hypOnym of the 'some'/'a' node is hypER of this
-                if (isAny)
-                {
-                    SemanticWebNode someNode = lexicalMemory.GetOrInsert(thisNodesName);
-                    SemanticWebNode aNode = lexicalMemory.GetOrInsert(thisNodesName2);
-                    var toAdd = GetHyponymsOf(someNode).Where((np) => !(!(np.determiner is null) && np.determiner.WordEquals("any")));
-                    toAdd = toAdd.Concat(GetHyponymsOf(aNode).Where((np) => !(!(np.determiner is null) && np.determiner.WordEquals("any"))));
-                    Debug.Log("Adding hyponyms of someNode to hypernyms for " + original.GetString() + ": " + string.Join("/", toAdd));
-                    hypernyms.AddRange(toAdd);
-                }
-
-                //Add the "some" and "a" versions of the original noun to the list (use an implied "IS" edge)
-                hypernyms.Add(new SemNP(thisNodesName));
-                hypernyms.Add(new SemNP(thisNodesName2));
-
-            }
-
-            Debug.LogError("1 Hypernyms for node " + original.GetString() + " - Found: " + string.Join("/", hypernyms));
-
-            //also take hypernyms of "any" version of original node (if this isn't already an any. lol)
-            if (!isAny)
+            //hypernyms of 'any' are hypernyms of 'some' // some hammer -> a tool -entails->k8 any hammer -> a tool
+            //TODO: figure out how to skip the ANY node itself bc that is NOT entailed here.. //TODO: actually is this whole thing false? every?
+            if (original.some)
             {
-                thisNodesName.determiner = AIKit_Grammar.EntryFor("any");
-                thisNodesName.noun.AffixReferent(null);
-                Debug.Log("Adding hypernyms of 'any' node " + thisNodesName.ToString() + " to hypernyms for " + original.GetString() + " -- but not the 'any' node itself");
-                nodes.Push(lexicalMemory.GetOrInsert(thisNodesName));
+                SemNP anyNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
+                nodes.Add(lexicalMemory.GetOrInsert(anyNP));
             }
 
-            Debug.LogError("2 Hypernyms for node " + original.GetString() + " - Found: " + string.Join("/", hypernyms));
+            List<SemNP> hypernyms = new List<SemNP>();
 
-            int limit = 5;
+            //i am a hypernym of self
+            hypernyms.Add(original.GetAliases()[0]);
 
-            while (nodes.Count > 0 && limit > 0) {
-                limit--;
-
-                SemanticWebNode node = nodes.Pop();
-                //would like to make const but meh
-                List<SemanticWebEdge> allIsEdges = node.GetEdges("is");
-                allIsEdges.ForEach((edge) => { nodes.Push(edge.to);});
-
-                allIsEdges.ForEach((edge) => Debug.Log("Edge in " + node.ToString() + ":" + edge.ToString()));
-
-                Debug.Log("Node " + node.GetString() + " has " + allIsEdges.Count + "is edges");
-                if (allIsEdges.Count > 0)
-                {
-                    Debug.Log("Found IS edges going from: " + node.GetString() + "/" + allIsEdges[0].from.GetString() +
-                        " to: " +
-                        string.Join(" & ", allIsEdges.ConvertAll((edge) => edge.to.GetString())));
-                }
-                hypernyms.AddRange(allIsEdges.ConvertAll((edge) => edge.to.GetAliases()).SelectMany(x => x).ToList());
+            //transitive on other nodes
+            if (dni is null) { dni = new List<SemanticWebNode> { original }; } else { dni.Add(original); }
+            foreach (SemanticWebNode n in nodes)
+            {
+                hypernyms.AddRange(GetHypernyms(n, ref dni));
             }
 
-            //Debug.Log(hypernyms.Count);
-            hypernyms = hypernyms.Distinct().ToList();
-            Debug.LogError("3 Hypernyms for node " + original.GetString() + " - Found: " + string.Join("/", hypernyms));
-            hypernyms.ForEach((np) => { np.qt = thisNodesName.qt; });
+            //HACK: hyponyms of 'some' are hypernyms of 'any' // any tool -> hammer -> some tool
+            if (original.any)
+            {
+                SemNP someNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("some") };
+                hypernyms.AddRange(GetHyponyms(lexicalMemory.GetOrInsert(someNP), ref dni)); //should i be using the same dni?
+            }
+
+            //HACK: some shouldnt entail its own any
+            if (original.some)
+            {
+                SemNP anyNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
+                hypernyms.Remove(anyNP);
+            }
+
             return hypernyms;
         }
 
+        public List<SemNP> GetHyponyms(SemanticWebNode original) { List<SemanticWebNode> _ = null; return GetHyponyms(original, ref _); }
+        public List<SemNP> GetHyponyms(SemanticWebNode original, ref List<SemanticWebNode> dni)
+        {
+            //do not loop
+            if (!(dni is null) && dni.Contains(original)) return new List<SemNP>();
 
-        public List<SemNP> GetHyponymsOf(SemanticWebNode original) {
-            Debug.Log("Entering GetHyponymsOf (" + original.GetString() + ")");
-
-            //prior to looking at the oringal SemNP, just use the web edges
-            List<SemNP> hyponyms = new List<SemNP>();
-            Stack<SemanticWebNode> nodes = new Stack<SemanticWebNode>();
-
-            //dont process incoming is edges on "any"
-            //if (!original.any) {
-                nodes.Push(original);
-            //}
-
-
-            //if x IS-A this, x is hyponym (check rev-edges, from perspective of this)
-            int limit = 5;
-            while (nodes.Count > 0 && limit > 0) {
-                limit--;
-                SemanticWebNode node = nodes.Pop();
-                List<SemanticWebEdge> allIsEdges = node.GetEdgesRev("is");
-
-                Debug.Log("Node "+node.GetString()+" has "+allIsEdges.Count+"is-rev edges");
-                if (allIsEdges.Count > 0)
-                {
-                    Debug.Log("Found rev-IS edges going to: " + node.GetString() + "/" + allIsEdges[0].from.GetString() + " from: " + string.Join(" & ", allIsEdges.ConvertAll((edge) => edge.from.GetString())));
-                }
-                allIsEdges.ForEach((edge) => {
-                    Debug.Log(edge.ToString());
-                    if (!edge.from.some && edge.from != node)
+            //get all nodes where N -> is -> original
+            //(unless they are some?), just bc some N -> is -> original doesn't mean some N entails original ((but any N does))
+            List<SemanticWebNode> nodes = new List<SemanticWebNode>();
+            nodes.AddRange(original.GetEdgesRev("is").ConvertAll(
+                e => {
+                    if (e.from.some)
                     {
-                        nodes.Push(edge.from);
-                        hyponyms.AddRange(edge.from.GetAliases());
+                        SemNP anyNP = new SemNP(e.from.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
+                        return lexicalMemory.GetOrInsert(anyNP);  
                     }
-                });
+                    else
+                    return e.from;
+                }));
 
-                //hyponyms.AddRange(allIsEdges.ConvertAll((edge) => edge.from.GetAliases()).SelectMany(x => x).ToList());
-            }
+            //if original -> is -> some N /// ((aka any hypernym?))
+            // then any N entails original (any N is a hyponym)
+            nodes.AddRange(original.GetEdges("is").ConvertAll(
+                e => {
+                    SemNP anyNP = (e.to.GetAliases()[0].determiner is null) ? new SemNP(e.to.GetAliases()[0]) : new SemNP(e.to.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
+                    return lexicalMemory.GetOrInsert(anyNP);
+                }));
 
-            ////Get any hypernym and change it to "any" -- that becomes a hypOnym. (...i think)
-            //Debug.Log("Any? " + original.some);
-            foreach (SemNP hyper in GetHypernymsOf(original).Concat(original.GetAliases()))
+            // if some is a hyponym then any is too. // a hammer -> any tool -entails-> a hammer -> some tool 
+            if (original.some)
             {
-                if (!(hyper.determiner is null) && !hyper.determiner.WordEquals("any"))
-                {
-                    Debug.Log("Adding 'any' node for " + hyper.ToString() + " to hyponyms for " + original.GetString() + ")");
-                    hyper.determiner = AIKit_Grammar.EntryFor("any");
-                    hyponyms.Add(new SemNP(hyper));
-                }
+                SemNP anyNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
+                nodes.Add(lexicalMemory.GetOrInsert(anyNP));
             }
 
-            ////add "any thing" to the list
-            SemNP anything = new SemNP();
-            anything.noun = AIKit_Grammar.EntryFor("thing");
-            anything.determiner = AIKit_Grammar.EntryFor("any");
-            anything.qt = original.GetAliases()[0].qt;
-            hyponyms.Add(anything);
 
-            hyponyms = hyponyms.Distinct().ToList();
+            List<SemNP> hyponyms = new List<SemNP>();
 
-            Debug.LogError("Hyponyms for node " + original.GetString() + " - Found: " + string.Join("/",hyponyms));
-            hyponyms.ForEach((np) => { np.qt = original.GetAliases()[0].qt; });
+            //i am a hyponym of self
+            hyponyms.Add(original.GetAliases()[0]);
+
+            //transitive on other nodes
+            if (dni is null) { dni = new List<SemanticWebNode> { original }; } else { dni.Add(original); }
+            foreach(SemanticWebNode n in nodes)
+            {
+                hyponyms.AddRange(GetHyponyms(n, ref dni));
+            }
+
+            //HACK: hyponyms of 'some' are hypernyms of 'any' // any tool -> hammer -> some tool
+            if (original.some)
+            {
+                SemNP anyNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
+                hyponyms.AddRange(GetHypernyms(lexicalMemory.GetOrInsert(anyNP), ref dni)); //should i be using the same dni?
+            }
+
+            //HACK: any shouldnt be entailed by it's some
+            if (original.any)
+            {
+                SemNP someNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("some") };
+                hyponyms.Remove(someNP);
+            }
+
             return hyponyms;
         }
 
@@ -1115,22 +1084,25 @@ namespace AIKit
 
             SemNP subject = original.np;
             SemanticWebNode originalNode = lexicalMemory.GetOrInsert(subject);
-            List<SemNP> entailingSubjects = GetHyponymsOf(originalNode);
-            entailingSubjects.Add(subject);
+            List<SemNP> entailingSubjects = GetHyponyms(originalNode);
+            
 
             List<SemNP> objects = original.vp.objects;
             List<SemanticWebNode> originalObjectNodes = objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
-            List<List<SemNP>> entailingObjects = originalObjectNodes.ConvertAll((objNode) => GetHyponymsOf(objNode));
+            List<List<SemNP>> entailingObjects = originalObjectNodes.ConvertAll((objNode) => GetHyponyms(objNode));
+
+            /* no longer needed
+            entailingSubjects.Add(subject);
             for (int i = 0; i < entailingObjects.Count; i++) {
                 entailingObjects[i].Add(objects[i]);
-            }
+            }*/
                     
 
             foreach (SemNP current_subject in entailingSubjects) {
                 //no objects for intransitive verbs
                 if (entailingObjects.Count == 0)
                 {
-                    Debug.Log("Currentsubj = " + current_subject.ToString() + ", OGSubj = " + subject.ToString() + ", match? " + (current_subject == subject));
+                    //Debug.Log("Currentsubj = " + current_subject.ToString() + ", OGSubj = " + subject.ToString() + ", match? " + (current_subject == subject));
                     if (current_subject == subject) continue; //no need to add og sentence?
 
                     SemSentence entailingSentence = new SemSentence();
@@ -1221,17 +1193,19 @@ namespace AIKit
 
             SemNP subject = original.np;
             SemanticWebNode originalNode = lexicalMemory.GetOrInsert(subject);
-            List<SemNP> entailedSubjects = GetHypernymsOf(originalNode);
-            entailedSubjects.Add(subject);
+            List<SemNP> entailedSubjects = GetHypernyms(originalNode);
+            
 
             List<SemNP> objects = original.vp.objects;
             List<SemanticWebNode> originalObjectNodes = objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
-            //negation via "no" flips entailment
-            //List<List<SemNP>> entailedObjects = original.vp.verb.ToString().StartsWith("no") ?originalObjectNodes.ConvertAll((objNode) => GetHyponymsOf(objNode)):originalObjectNodes.ConvertAll((objNode) => GetHypernymsOf(objNode));
-            List<List<SemNP>> entailedObjects = originalObjectNodes.ConvertAll((objNode) => GetHypernymsOf(objNode));
+            List<List<SemNP>> entailedObjects = originalObjectNodes.ConvertAll((objNode) => GetHypernyms(objNode));
+
+            /* no longer needed
+            entailedSubjects.Add(subject);
             for (int i = 0; i < entailedObjects.Count; i++) {
                 entailedObjects[i].Add(objects[i]);
             }
+            */
 
             //try EVERY combination of entailing subjects and objects
             foreach (SemNP current_subject in entailedSubjects) {
@@ -1608,14 +1582,16 @@ namespace AIKit
             SemanticWebNode subjNode = this.lexicalMemory.GetOrInsert(fact.np);
             List<SemanticWebNode> objNodes = fact.vp.objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
             
-            List<SemNP> subjMonikers = GetHypernymsOf(subjNode);
-            List<List<SemNP>> objMonikers = objNodes.ConvertAll((node) => GetHypernymsOf(node));//fact.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHyponymsOf(node)):objNodes.ConvertAll((node) => GetHypernymsOf(node));
+            List<SemNP> subjMonikers = GetHypernyms(subjNode);
+            List<List<SemNP>> objMonikers = objNodes.ConvertAll((node) => GetHypernyms(node));//fact.vp.verb.ToString().StartsWith("no")?objNodes.ConvertAll((node) => GetHyponymsOf(node)):objNodes.ConvertAll((node) => GetHypernymsOf(node));
 
+            /* no longer needed
             //add ogs
             subjMonikers.Add(fact.np);
             for (int i = 0; i < objMonikers.Count; i++) {
                 objMonikers[i].Add(fact.vp.objects[i]);
             }
+            */
 
             //Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
 
@@ -1926,7 +1902,6 @@ namespace AIKit
                         return m.node;
                     }
                 }
-                //lme.Ingest(le);
             }
             //Debug.LogError("Didn't find.");
 
@@ -1954,73 +1929,34 @@ namespace AIKit
                 newNode.AddEdgeTo(AIKit_Grammar.EntryFor("is"), someNode, new Sentence(why), 0.5f);
 
                 Debug.LogWarning("First occurrence of "+ np.ToString() + " Added is->some thing");
-
-                /*concept of "any thing" should be created if it doesn't exist. [[Then add the edge.]]] actuallyy...... this has the same porblem as the other anything edges... so... maybe not?
-                if (np.qt == QuoteType.Literal && !np.determiner.WordEquals("any")) {
-                    SemNP anything = new SemNP();
-                    anything.noun = new LexicalEntry(np.noun);
-                    anything.noun.AffixReferent(null); //remove referent as this is abstract
-                    anything.determiner = AIKit_Grammar.EntryFor("any");
-                    SemanticWebNode anyNode = this.GetOrInsert(anything);
-
-                    //our explanation: "any thing is a ____/any ____ is some ____"
-                    SemSentence why = new SemSentence();
-                    why.np = anything;
-                    why.vp = new SemVP();
-                    why.vp.verb = AIKit_Grammar.EntryFor("is");
-                    why.vp.objects.Add(np);
-
-                    //Debug.LogWarning("should add edge indicating that "+anything.ToString()+" is "+np.ToString()+".");
-
-                    //I'll have to infer this... I can't add it. Otherwise I'll see infinite loops
-                    //anyNode.AddEdgeTo(why.vp.verb, newNode, new Sentence(why), 0.5f);
-                }*/
-
             }
 
-            //"anything" is EVERYTHING
-            //this creates a bug where this is interpreted as actually "anything is everything" in which case all "is" statements i.e. "a monster is a person" were true!
-            //if all I want is for "anything" to be a hyponym of everything then I will implement this in the GetHyponyms function instead of using edges!
-            /*
-            if (!np.noun.WordEquals("thing") && !np.noun.WordEquals("anything") && !np.noun.WordEquals("something")) {
-                Debug.LogWarning("should add edge indicating that anything is "+np.ToString()+".");
-                SemNP anything = new SemNP();
-                anything.noun = AIKit_Grammar.EntryFor("anything");
-                SemanticWebNode anythingNode = this.GetAnythingNode();
-
-                //our explanation: "everything is some thing"
-                SemSentence why = new SemSentence();
-                why.np = anything;
-                why.vp = new SemVP();
-                why.vp.verb = AIKit_Grammar.EntryFor("is");
-                why.vp.objects.Add(new SemNP());
-                why.vp.objects[0].noun = AIKit_Grammar.EntryFor("everything");
-
-                anythingNode.AddEdgeTo(why.vp.verb, newNode, new Sentence(why), 0.5f);
-            }*/
-
-
-            //EVERYTHING is "something"
-            /*
-            if (np.qt == QuoteType.Literal && !np.noun.WordEquals("thing") && !np.noun.WordEquals("something") && !np.noun.WordEquals("anything")) {
-                //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is something.");
+            //if x is proper noun, x is a thing (bc we won't use "any" on it)
+            if (np.qt == QuoteType.Literal && (np.noun.wordClass == WordClass.NP || np.noun.wordClass == WordClass.Name))
+            {
+                //concept of "some thing" should be created if it doesn't exist. Then add the edge
                 SemNP something = new SemNP();
                 something.noun = AIKit_Grammar.EntryFor("thing");
+                something.noun.AffixReferent(null); //remove referent as this is abstract
                 something.determiner = AIKit_Grammar.EntryFor("some");
-                something.qt = np.qt;
-                SemanticWebNode somethingNode = this.GetOrInsert(something);
+                something.qt = QuoteType.Literal;
+                SemanticWebNode someNode = this.GetOrInsert(something, true);
 
-                //our explanation: "everything is some thing"
+                //our explanation: "any ___ is a thing"
                 SemSentence why = new SemSentence();
-                why.np = new SemNP();
-                why.np.noun = AIKit_Grammar.EntryFor("everything");
+                why.np = new SemNP(np);
                 why.vp = new SemVP();
                 why.vp.verb = AIKit_Grammar.EntryFor("is");
-                why.vp.objects.Add(something); //TODO: should be literal.
+                why.vp.objects.Add(something);
 
-                newNode.AddEdgeTo(why.vp.verb, somethingNode, new Sentence(why), 0.5f);
-            }*/
+                //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
 
+                newNode.AddEdgeTo(AIKit_Grammar.EntryFor("is"), someNode, new Sentence(why), 0.5f);
+
+                Debug.LogWarning("First occurrence of " + np.ToString() + " Added is->some thing");
+            }
+
+            //add this SemanticWebNode to the lexical memory
             LexicalMemoryEntry lme = new LexicalMemoryEntry(newNode);
             if (entries.ContainsKey(np.ToString())) {
                 entries[np.ToString()].Add(lme);
