@@ -48,6 +48,9 @@ public class KnowledgePanel : MonoBehaviour
         string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.GetSemantics().ToString();
         //Debug.Log(s);
 
+        List<AIKit.SemNP> hypernyms = Entity.knowledgeModule.GetHypernyms(Entity.knowledgeModule.lexicalMemory.GetOrInsert(sentenceParsed.GetSemantics().GetFirstNP()));
+        Debug.LogError("Hypernyms for node " + sentenceParsed.GetSemantics().GetFirstNP().ToString() + " - Found: " + string.Join("/", hypernyms));
+
         List<AIKit.SemSentence> returnedSentences = Entity.knowledgeModule.GetSentencesEntailedBy(sentenceParsed.GetSemantics());
         if (returnedSentences.Count > 0)
             ConsoleText.text = "Found " + returnedSentences.Count + " entailed sentences.\n" + string.Join("\n", returnedSentences.Select(m => m.ToString()).ToArray());
@@ -64,6 +67,9 @@ public class KnowledgePanel : MonoBehaviour
         AIKit.Sentence sentenceParsed = AIKit.AIKit_Grammar.Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
         string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.GetSemantics().ToString();
         //Debug.Log(s);
+
+        List<AIKit.SemNP> hyponyms = Entity.knowledgeModule.GetHyponyms(Entity.knowledgeModule.lexicalMemory.GetOrInsert(sentenceParsed.GetSemantics().GetFirstNP()));
+        Debug.LogError("Hyponyms for node " + sentenceParsed.GetSemantics().GetFirstNP().ToString() + " - Found: " + string.Join("/", hyponyms));
 
         List<AIKit.SemSentence> returnedSentences = Entity.knowledgeModule.GetSentencesThatEntail(sentenceParsed.GetSemantics());
         if (returnedSentences.Count > 0)
@@ -189,7 +195,7 @@ public class TestGraphWindow : EditorWindow
         TestGraphWindow wnd = GetWindow<TestGraphWindow>();
         wnd.titleContent = new GUIContent("Knowledge Graph for " + Selection.activeGameObject.GetComponent<BeAnEntity>().EntityName);
         wnd.graphObject = Selection.activeGameObject.GetComponent<BeAnEntity>().GetSelf().knowledgeModule.lexicalMemory;
-        Debug.Log("Oopening knowledge window for " + Selection.activeGameObject.GetComponent<BeAnEntity>().EntityName);
+        Debug.Log("Opening knowledge window for " + Selection.activeGameObject.GetComponent<BeAnEntity>().EntityName);
         wnd.CreateElements();
     }
 
@@ -218,6 +224,42 @@ public class TestGraphWindow : EditorWindow
         GridBackground gridBackground = new GridBackground() { name = "Grid" };
         graphView.Add(gridBackground);
         gridBackground.SendToBack();
+
+
+
+        //test set of nodes
+        AIKit.SemNP semNP1 = new AIKit.SemNP()
+        {
+            determiner = AIKit.AIKit_Grammar.EntryFor("any"),
+            noun = AIKit.AIKit_Grammar.EntryFor("monster"),
+            qt = AIKit.QuoteType.Literal
+        };
+        AIKit.SemNP semNP2 = new AIKit.SemNP()
+        {
+            determiner = AIKit.AIKit_Grammar.EntryFor("some"),
+            noun = AIKit.AIKit_Grammar.EntryFor("monster"),
+            qt = AIKit.QuoteType.Literal
+        };
+        AIKit.SemNP semNP3 = new AIKit.SemNP()
+        {
+            determiner = AIKit.AIKit_Grammar.EntryFor("a"),
+            noun = AIKit.AIKit_Grammar.EntryFor("thing"),
+            qt = AIKit.QuoteType.Literal
+        };
+
+        AIKit.SemanticWebNode semanticWebNode1 = new AIKit.SemanticWebNode(semNP1);
+        AIKit.SemanticWebNode semanticWebNode2 = new AIKit.SemanticWebNode(semNP2);
+        AIKit.SemanticWebNode semanticWebNode3 = new AIKit.SemanticWebNode(semNP3);
+
+        semanticWebNode1.AddEdgeTo(AIKit.AIKit_Grammar.EntryFor("is"), semanticWebNode2, new AIKit.Sentence(new List<AIKit.LexicalEntry>()), 0.5f);
+        semanticWebNode2.AddEdgeTo(AIKit.AIKit_Grammar.EntryFor("is"), semanticWebNode3, new AIKit.Sentence(new List<AIKit.LexicalEntry>()), 0.5f);
+        semanticWebNode3.AddEdgeTo(AIKit.AIKit_Grammar.EntryFor("is"), semanticWebNode1, new AIKit.Sentence(new List<AIKit.LexicalEntry>()), 0.5f);
+
+        //any monster -is-> some monster
+        //some monster -is-> a thing
+        //a thing -is-> any monster
+
+        List<AIKit.SemanticWebNode> testNodes = new List<AIKit.SemanticWebNode> { semanticWebNode2, semanticWebNode1, semanticWebNode3 };
 
         //place all nodes
         foreach (AIKit.SemanticWebNode semanticWebNode in graphObject.GetAllNodes())
@@ -261,9 +303,10 @@ public class TestGraphWindow : EditorWindow
 
                 Node targetGraphNode = graphView.nodes.ToList().Find((node) =>
                 {
+                    AIKit.SemanticWebNode thisNode = (node.userData as AIKit.SemanticWebNode);
+
                     if ((node.userData as AIKit.SemanticWebNode) is null) { Debug.LogError("strange null in userData"); }
-                    Debug.Log("LF: " + (node.userData as AIKit.SemanticWebNode).GetAliases()[0]);
-                    Debug.Log("Found: " + edge.to.GetAliases()[0]);
+                    Debug.LogWarning(edge.to.GetString() + " == " + thisNode.GetString() + "? "+ (node.userData == edge.to));
                     return node.userData == edge.to;
                 });
                 string inPortName = "->" + edge.word.ToString();
@@ -293,6 +336,11 @@ public class TestGraphWindow : EditorWindow
                 e.MarkDirtyRepaint();
 
                 graphView.AddElement(e);
+
+                targetGraphNode.RefreshExpandedState();
+                targetGraphNode.RefreshPorts();
+                targetGraphNode.MarkDirtyRepaint();
+                rootVisualElement.MarkDirtyRepaint();
             }
 
             graphNode.RefreshExpandedState();

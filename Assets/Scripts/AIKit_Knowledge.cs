@@ -5,6 +5,12 @@ using System;
 using System.Linq;
 using static System.Collections.IList;
 
+struct Prefs
+{
+    public static bool DEBUG = false;
+    public static bool DEBUGACTIONS = true;
+}
+
 namespace AIKit 
 {
     public enum LogicClass //used for FOL
@@ -62,9 +68,9 @@ namespace AIKit
         }
 
         void interpretSentence(Sentence s, SemSentence sem, float salience, out List<SemanticWebEdge> newEdges) {
-            Debug.Log("Interpreting Sentence "+s.ToString()+"...");
+            if (Prefs.DEBUG) Debug.Log("Interpreting Sentence "+s.ToString()+"...");
             newEdges = new List<SemanticWebEdge>();
-            //Debug.Log("Is this a rule? "+s.GetSemantics().ToString()+" : "+ (!(s.GetSemantics() as SemImplication is null)));
+            //if (Prefs.DEBUG) Debug.Log("Is this a rule? "+s.GetSemantics().ToString()+" : "+ (!(s.GetSemantics() as SemImplication is null)));
 
             //break down sentence, modify lexical memory & semantic web apropriately
             Queue<SemSentence> roots = new Queue<SemSentence>();
@@ -126,7 +132,7 @@ namespace AIKit
                     foreach (SemSentence conclusion in GetResultsFrom(root).ConvertAll((result) => AIKit_Grammar.FillPronouns(s.GetSemantics(), result)))
                     {
                         roots.Enqueue(conclusion);
-                        //Debug.Log("Derived rule-based result:\t" + conclusion.ToString());
+                        //if (Prefs.DEBUG) Debug.Log("Derived rule-based result:\t" + conclusion.ToString());
                     }
                 }
 
@@ -138,7 +144,7 @@ namespace AIKit
                     foreach (SemNP obj in vp.objects) {
                         List<SemanticWebNode> objNodes = GetWebNodeByNP(obj, s, salience, 1);//vp.verb.ToString().StartsWith("no")?0:1);
                         foreach (SemanticWebNode objNode in objNodes) {
-                            //Debug.Log("\tDerived conclusion:\t"+ subjectNode.GetString() +" "+ vp.verb.ToString() +" "+ objNode.GetString());
+                            //if (Prefs.DEBUG) Debug.Log("\tDerived conclusion:\t"+ subjectNode.GetString() +" "+ vp.verb.ToString() +" "+ objNode.GetString());
                             SemSentence newRoot = new SemSentence(subjectNode.GetAliases()[0], vp.verb, objNode.GetAliases()[0]);
                             if (newRoot != root) roots.Enqueue(newRoot); //to avoid infinite loops dont push what i just derived. 
                             //maybe even make a set of these old roots for avoidin larger loops?
@@ -150,7 +156,7 @@ namespace AIKit
                     foreach (SemSentence obj in vp.sentenceObjects) {
                         List<SemanticWebNode> objNodes = interpretObject(obj, s, salience, vp.verb.ToString().StartsWith("no")?0:1);
                         foreach (SemanticWebNode objNode in objNodes) {
-                            //Debug.Log("Derived conclusion:\t"+ subjectNode.GetString() +" "+ vp.verb.ToString() +" "+ objNode.GetString());
+                            //if (Prefs.DEBUG) Debug.Log("Derived conclusion:\t"+ subjectNode.GetString() +" "+ vp.verb.ToString() +" "+ objNode.GetString());
                             SemSentence newRoot = new SemSentence(subjectNode.GetAliases()[0], vp.verb, objNode.GetAliases()[0]);
                             if (newRoot != root) roots.Enqueue(newRoot); //to avoid infinite loops dont push what i just derived. 
                             //maybe even make a set of these old roots for avoidin larger loops?
@@ -191,7 +197,7 @@ namespace AIKit
                         matchingNodes.AddRange(e);
                     break;
                 }
-                default: Debug.LogWarning("Inflexible object interpretation."); break;
+                default: if (Prefs.DEBUG) Debug.LogWarning("Inflexible object interpretation."); break;
             }
 
             SemPP pp = np.pp;
@@ -214,7 +220,7 @@ namespace AIKit
         ////Given a quoted semS, adds semanticwebnodes for it and returns the node for the last or first semNP in the quote's chain
         //SemanticWebNode GetWebNodeBySentence(SemSentence s, Sentence originalSentence, float salience, bool last)
         //{
-        //    if (!s.IsQuoted()) { Debug.LogError("Trying to interpret non-Quote as Quote!"); }
+        //    if (!s.IsQuoted()) { if (Prefs.DEBUG) Debug.LogError("Trying to interpret non-Quote as Quote!"); }
 
         //    //is it an implication?
         //    if (s.IsImplication())
@@ -256,7 +262,7 @@ namespace AIKit
             if ( d.WordEquals("some") || d.WordEquals("a")) return LogicClass.Existential;
             if ( d.WordEquals("every") || d.WordEquals("all") || d.WordEquals("any") ) return LogicClass.Universal;
 
-            Debug.LogWarning("Passthru on determining Logic Class/Quantification of NP:"+ np.ToString());
+            if (Prefs.DEBUG) Debug.LogWarning("Passthru on determining Logic Class/Quantification of NP:"+ np.ToString());
             return LogicClass.Atomic;
         }
 
@@ -308,7 +314,7 @@ namespace AIKit
                     string antiVerbS = verb.ToString().StartsWith("no") ? verb.ToString().Substring(2) : "no"+verb.ToString();
                     List<SemanticWebEdge> antiMatchingEdges = f.GetEdges(antiVerbS).FindAll((e) => e.to == t);
 
-                    //Debug.LogError("\tAttempting connection via \t"+f.GetString()+" "+verb.ToString()+" "+t.GetString());
+                    if (Prefs.DEBUG) Debug.Log("Attempting connection via \t"+f.GetString()+" "+verb.ToString()+" "+t.GetString());
                     float recentNo = 0;
                     int nocount = 0;
 
@@ -316,7 +322,7 @@ namespace AIKit
                         nocount++;
                         recentNo += Mathf.Exp(GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now().val() - e.why.utterance.val()); 
                     }
-                    Debug.Log("\tDeconfirmed x"+nocount+": "+f.GetString()+" "+antiVerbS+" "+t.GetString());
+                    if (Prefs.DEBUG) Debug.Log("\tDeconfirmed x"+nocount+": "+f.GetString()+" "+antiVerbS+" "+t.GetString());
                     
                     
                     float recentYes = 0;
@@ -326,7 +332,7 @@ namespace AIKit
                         yescount++;
                         recentYes += Mathf.Exp(GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now().val() - e.why.utterance.val()); 
                     }
-                    Debug.Log("\tConfirmed x"+yescount+": "+f.GetString()+" "+verb.ToString()+" "+t.GetString());
+                    if (Prefs.DEBUG) Debug.Log("\tConfirmed x"+yescount+": "+f.GetString()+" "+verb.ToString()+" "+t.GetString());
                     
 
                     console+=f.GetString() + " "+verb.ToString()+" "+t.GetString()+"? "+ recentYes + " for, " + recentNo + " against.\n";
@@ -350,7 +356,7 @@ namespace AIKit
                         nocount++;
                         recentNo += Mathf.Exp(GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now().val() - e.why.utterance.val());
                     }
-                    Debug.Log("\tDeconfirmed x" + nocount + ": " + f.GetString() + " " + antiVerb.ToString());
+                    if (Prefs.DEBUG) Debug.Log("\tDeconfirmed x" + nocount + ": " + f.GetString() + " " + antiVerb.ToString());
 
                     float recentYes = 0;
                     int yescount = 0;
@@ -359,7 +365,7 @@ namespace AIKit
                         yescount++;
                         recentYes += Mathf.Exp(GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now().val() - e.why.utterance.val());
                     }
-                    Debug.Log("\tConfirmed x" + yescount + ": " + f.GetString() + " " + verb.ToString());
+                    if (Prefs.DEBUG) Debug.Log("\tConfirmed x" + yescount + ": " + f.GetString() + " " + verb.ToString());
 
                     console += f.GetString() + " " + verb.ToString() + "? " + recentYes + " for, " + recentNo + " against.\n";
                     if ((recentYes - recentNo) > 0)
@@ -372,7 +378,7 @@ namespace AIKit
             }
 
 
-            //Debug.Log("\tCould not prove: "+from.GetString()+" "+verb.ToString()+" "+ ((to is null) ? "" : to.GetString()));
+            //if (Prefs.DEBUG) Debug.Log("\tCould not prove: "+from.GetString()+" "+verb.ToString()+" "+ ((to is null) ? "" : to.GetString()));
             return false;
         }
 
@@ -383,7 +389,7 @@ namespace AIKit
             foreach (SemNP branchObject in branch.objects) {
                 if (rr && branchObject.noun.GetReferent() is null)
                 {
-                    //Debug.Log("No referent, not suitable for RR mode. False.");
+                    //if (Prefs.DEBUG) Debug.Log("No referent, not suitable for RR mode. False.");
                     return false;
                 }
 
@@ -437,7 +443,7 @@ namespace AIKit
                         return true;
 
                     default:
-                        Debug.LogError("Broken Logic Class on object");
+                        if (Prefs.DEBUG) Debug.LogError("Broken Logic Class on object");
                         return false;
                 }
             }
@@ -511,7 +517,7 @@ namespace AIKit
             }
             if (s.IsQuoted() || s.IsCompound() || s.IsImplication())
             {
-                Debug.LogError("Unsuported sentence format... implication or quoted normal.");
+                if (Prefs.DEBUG) Debug.LogError("Unsuported sentence format... implication or quoted normal.");
                 return false;
             }
 
@@ -532,7 +538,7 @@ namespace AIKit
 
             if (rr && root.noun.GetReferent() is null)
             {
-                //Debug.Log("No referent, not suitable for RR mode. False.");
+                //if (Prefs.DEBUG) Debug.Log("No referent, not suitable for RR mode. False.");
                 return false;
             }
 
@@ -582,7 +588,7 @@ namespace AIKit
                     console+="All true!\n";
                     return true;
             }
-            Debug.LogError("Fellthrough on root "+root.ToString()+" LogicClasses!");
+            if (Prefs.DEBUG) Debug.LogError("Fellthrough on root "+root.ToString()+" LogicClasses!");
             return false;
         }
 
@@ -591,11 +597,14 @@ namespace AIKit
 
             str += "Core sentence failed, trying entailing sentences...\n";
 
+            List<SemSentence> alreadyChecked = new List<SemSentence> { s.GetSemantics() };
+
             List<SemSentence> entailingSentences = GetSentencesThatEntail(s.GetSemantics());
             foreach (SemSentence eS in entailingSentences) {
                 str += "Trying entailing sentence: " + eS.ToString() +"\n";
                 string add;
-                bool res = isTrueR(eS, out add, out _, new List<SemSentence>{s.GetSemantics()}, rr);
+                
+                bool res = isTrueR(eS, out add, out _, ref alreadyChecked, rr);
                 str += add;
                 if (res) {
                     str += "Entailing sentence true, so this is true! :)\n";
@@ -609,7 +618,8 @@ namespace AIKit
             foreach (SemSentence iS in implyingSentences) {
                 str += "Trying implying sentence: " + iS.ToString() +"\n";
                 string add;
-                bool res = isTrueR(iS, out add, out _, new List<SemSentence>{s.GetSemantics()}, rr);
+
+                bool res = isTrueR(iS, out add, out _, ref alreadyChecked, rr);
                 str += add;
                 if (res) {
                     str += "Implying sentence true, so this is true! :)\n";
@@ -621,7 +631,7 @@ namespace AIKit
             return false;
         }  
 
-        public bool isTrueR(SemSentence s, out string str, out SemSentence specific, List<SemSentence> alreadyChecked, bool rr){
+        public bool isTrueR(SemSentence s, out string str, out SemSentence specific, ref List<SemSentence> alreadyChecked, bool rr){
             //avoid loops
             if (alreadyChecked.Contains(s)) {
                 str = "";
@@ -645,7 +655,7 @@ namespace AIKit
 
                 str += "Trying entailing sentence: " + eS.ToString() +"\n";
                 string add;
-                bool res = isTrueR(eS, out add, out specific, alreadyChecked, rr);
+                bool res = isTrueR(eS, out add, out specific, ref alreadyChecked, rr);
                 str += add;
                 if (res) {
                     str += "Entailed sentence true, so this is true! :)\n";
@@ -663,7 +673,7 @@ namespace AIKit
 
                 str += "Trying implying sentence: " + iS.ToString() +"\n";
                 string add;
-                bool res = isTrueR(iS, out add, out specific, alreadyChecked, rr);
+                bool res = isTrueR(iS, out add, out specific, ref alreadyChecked, rr);
                 str += add;
                 if (res) {
                     str += "Implying sentence true, so this is true! :)\n";
@@ -684,20 +694,20 @@ namespace AIKit
             SemImplication rule = s.GetSemantics() as SemImplication;
             if (rule is null) return;
             rule.MakeLiteral();
-            Debug.LogError("Learning Rule: " + rule.ToString());
+            if (Prefs.DEBUG) Debug.LogError("Learning Rule: " + rule.ToString());
             this.ruleSet.Add(rule); //save the rule along with pronouns... verbatim
             LearnRule(rule.antecedent, rule.consequent);
             rule.MakeQuote();
         }
 
         public void LearnRule(SemSentence antecedent, SemSentence consequent) {
-            Debug.LogError("Storing Rule: " + antecedent.ToString() + " => " + consequent.ToString());
+            if (Prefs.DEBUG) Debug.LogError("Storing Rule: " + antecedent.ToString() + " => " + consequent.ToString());
 
             //AND... put a map from antecedent to consequent (for "drawing conclusions")
             SemSentence newAntecedent = AIKit_Grammar.FillPronouns(consequent, antecedent);
-            Debug.LogError("Pronoun filled antecedent:" + newAntecedent.ToString());
+            if (Prefs.DEBUG) Debug.LogError("Pronoun filled antecedent:" + newAntecedent.ToString());
             SemSentence matchingConsequent = AIKit_Grammar.TakePronouns(antecedent, consequent);
-            Debug.LogError("Matching consequent:" + matchingConsequent.ToString());
+            if (Prefs.DEBUG) Debug.LogError("Matching consequent:" + matchingConsequent.ToString());
             if (this.resultsFrom.ContainsKey(newAntecedent)) {
                 this.resultsFrom[newAntecedent].Add(matchingConsequent);
             } else {
@@ -714,9 +724,9 @@ namespace AIKit
             
             //also put a map from consequent to antecedent
             SemSentence newConsequent = AIKit_Grammar.FillPronouns(antecedent, consequent);
-            Debug.LogError("Pronoun filled consequent:" + newConsequent.ToString());
+            if (Prefs.DEBUG) Debug.LogError("Pronoun filled consequent:" + newConsequent.ToString());
             SemSentence matchingAntecedent = AIKit_Grammar.TakePronouns(consequent, antecedent);
-            Debug.LogError("Matching antecedent:" + matchingAntecedent.ToString());
+            if (Prefs.DEBUG) Debug.LogError("Matching antecedent:" + matchingAntecedent.ToString());
             if (this.waysTo.ContainsKey(newConsequent)) {
                 this.waysTo[newConsequent].Add(matchingAntecedent);
             } else {
@@ -782,7 +792,7 @@ namespace AIKit
 
 
         public List<SemSentence> GetWaysTo(SemSentence goal) {
-            Debug.LogWarning("Looking for ways to:\t"+goal.ToString());
+            if (Prefs.DEBUG) Debug.LogWarning("Looking for ways to:\t"+goal.ToString());
             if (goal.IsImplication()) { return new List<SemSentence>(); } //no way to create implications (for nowww)
             if (goal.IsCompound()) {
                 List<SemSentence> ways = new List<SemSentence>();
@@ -831,7 +841,7 @@ namespace AIKit
 
             List<SemSentence> allWaysTo = new List<SemSentence>();
 
-            Debug.Log("waysTo Dictionary content:" + string.Join(", ", this.waysTo.Keys));
+            if (Prefs.DEBUG) Debug.Log("waysTo Dictionary content:" + string.Join(", ", this.waysTo.Keys));
             
             SemanticWebNode subjNode = this.lexicalMemory.GetOrInsert(goal.np);
             List<SemanticWebNode> objNodes = goal.vp.objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
@@ -847,7 +857,7 @@ namespace AIKit
             }
             */
 
-            Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
+            if (Prefs.DEBUG) Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
 
             foreach (SemNP subjectMoniker in subjMonikers) {
                 //if we only have sentencial objects in our goal just try one sentence with that
@@ -862,26 +872,26 @@ namespace AIKit
                         aliasedGoal.np = subjectMoniker;
                         aliasedGoal.vp.objects[obj_index] = object_i_Moniker;
 
-                        //Debug.LogError("Checking dict for \t" + aliasedGoal.ToString());
+                        //if (Prefs.DEBUG) Debug.LogError("Checking dict for \t" + aliasedGoal.ToString());
 
                         if (this.waysTo.ContainsKey(aliasedGoal)) {
-                            //Debug.LogWarning("1.Replacing all occurrences of "+object_i_Moniker.ToString()+" with "+goal.vp.objects[obj_index].ToString()+"in the sentence: "+aliasedGoal.ToString());
+                            //if (Prefs.DEBUG) Debug.LogWarning("1.Replacing all occurrences of "+object_i_Moniker.ToString()+" with "+goal.vp.objects[obj_index].ToString()+"in the sentence: "+aliasedGoal.ToString());
                             List<SemSentence> results = AliasedWaysTo(aliasedGoal, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { goal.vp.objects[obj_index], goal.np });
                             allWaysTo.AddRange(results);
-                            //Debug.Log("Added " + results.Count + " waysTo.");
+                            //if (Prefs.DEBUG) Debug.Log("Added " + results.Count + " waysTo.");
                         }
                         else
                         {
-                            //Debug.LogError("No rules to\t"+aliasedGoal.ToString());
+                            //if (Prefs.DEBUG) Debug.LogError("No rules to\t"+aliasedGoal.ToString());
                         }
 
-                        //Debug.Log("Now have " + allWaysTo.Count + " waysTo.");
+                        //if (Prefs.DEBUG) Debug.Log("Now have " + allWaysTo.Count + " waysTo.");
                     }
                 }
             }
 
             allWaysTo = allWaysTo.Distinct().ToList();
-            Debug.Log("Found "+allWaysTo.Count+" distinct ways to "+goal.ToString());
+            if (Prefs.DEBUG) Debug.Log("Found "+allWaysTo.Count+" distinct ways to "+goal.ToString());
             return allWaysTo;
         }
 
@@ -893,7 +903,7 @@ namespace AIKit
                 SemNP original = originals[i];
 
                 //replace any NP that match the moniker with the original
-                //Debug.LogWarning("Replacing all occurrences of "+moniker.ToString()+" with "+original.ToString()+"in the sentence: "+aliasedGoal.ToString());
+                //if (Prefs.DEBUG) Debug.LogWarning("Replacing all occurrences of "+moniker.ToString()+" with "+original.ToString()+"in the sentence: "+aliasedGoal.ToString());
                 if (originalSentence.np == moniker)
                     originalSentence.np = new SemNP(original);
                 for (int j = 0; j < originalSentence.vp.objects.Count; j++) {
@@ -992,8 +1002,6 @@ namespace AIKit
                     return e.from;
                 }));
 
-            Debug.Log("(1) Hyponyms of: "+original.GetString()+": " + String.Join("&", nodes.ConvertAll(n => n.GetString())));
-
             //if original -> is -> some N /// ((aka any hypernym?))
             // then any N entails original (any N is a hyponym)
             nodes.AddRange(original.GetEdges("is").ConvertAll(
@@ -1002,16 +1010,12 @@ namespace AIKit
                     return lexicalMemory.GetOrInsert(anyNP);
                 }));
 
-            Debug.Log("(2) Hyponyms of: " + original.GetString() + ": " + String.Join("&", nodes.ConvertAll(n => n.GetString())));
-
             // if some is a hyponym then any is too. // a hammer -> any tool -entails-> a hammer -> some tool 
             if (original.some)
             {
                 SemNP anyNP = new SemNP(original.GetAliases()[0]) { determiner = AIKit_Grammar.EntryFor("any") };
                 nodes.Add(lexicalMemory.GetOrInsert(anyNP));
             }
-
-            Debug.Log("(3) Hyponyms of: " + original.GetString() + ": " + String.Join("&", nodes.ConvertAll(n => n.GetString())));
 
 
             List<SemNP> hyponyms = new List<SemNP>();
@@ -1113,7 +1117,7 @@ namespace AIKit
                 //no objects for intransitive verbs
                 if (entailingObjects.Count == 0)
                 {
-                    //Debug.Log("Currentsubj = " + current_subject.ToString() + ", OGSubj = " + subject.ToString() + ", match? " + (current_subject == subject));
+                    //if (Prefs.DEBUG) Debug.Log("Currentsubj = " + current_subject.ToString() + ", OGSubj = " + subject.ToString() + ", match? " + (current_subject == subject));
                     if (current_subject == subject) continue; //no need to add og sentence?
 
                     SemSentence entailingSentence = new SemSentence();
@@ -1269,13 +1273,15 @@ namespace AIKit
         //Ideal output plan: Alena push button(R), Door(R) open, Snake enter room, Cow exit room
         //Process:  1: Cow exit room M: Snake enter room [snake enter room => 
 
-        bool AlreadyDoneOrDoable(SemSentence goal, out SemSentence specifics, ref bool rr)
+        bool AlreadyDoneOrDoable(SemSentence goal, out SemSentence specifics, ref bool rr, out bool mustDoSomething)
         {
             //basically isTrue but returns the exact hyponym used in a dict. Honestly isTrue should do this too?
             specifics = null;
+            mustDoSomething = false;
 
             //try to achieve goal directly (no Actions)
-            if (isTrueR(goal, out _, out specifics, new List<SemSentence>(), rr)) {
+            List<SemSentence> abc = new List<SemSentence>();
+            if (isTrueR(goal, out _, out specifics, ref abc, rr)) {
                 return true;
             }
 
@@ -1291,10 +1297,12 @@ namespace AIKit
                         canGoal.vp.verb = AIKit_Grammar.EntryFor("can" + goal.vp.verb.ToString());
 
                         //if we're about to plan an action, we need concrete targets. Use RR (Referent Required) mode to acquire referent.
-                        if (isTrueR(canGoal, out _, out specifics, new List<SemSentence>(), true))
+                        abc = new List<SemSentence>();
+                        if (isTrueR(canGoal, out _, out specifics, ref abc, true))
                         {
-                            Debug.Log("Needed to perform action to reach truth, enabling rr");
+                            if (Prefs.DEBUG) Debug.Log("Needed to perform action to reach truth, enabling rr && mustDoSomething");
                             rr = true;
+                            mustDoSomething = true;
                             return true;
                         }
                         
@@ -1307,8 +1315,13 @@ namespace AIKit
 
         public Stack<SemSentence> PlanTo(SemSentence goal)
         {
-
-            return new Stack<SemSentence> (PlanToRecursively(goal, out _, false).ToList().Reverse<SemSentence>());
+            Queue<SemSentence> plan = PlanToRecursively(goal, out _, false);
+            if (plan is null)
+            {
+                Debug.LogError("Planning to " + goal.ToString() + " failed!");
+                plan = new Queue<SemSentence>();
+            }
+            return new Stack<SemSentence> (plan.ToList().Reverse<SemSentence>());
         }
 
         public Queue<SemSentence> PlanToRecursively(SemSentence goal, out SemSentence specificSolution, bool rr, int depth = 3)
@@ -1316,7 +1329,7 @@ namespace AIKit
             //stop infinites
             if (depth < 1)
             {
-                Debug.LogError("Recursed too deep.");
+                if (Prefs.DEBUG) Debug.LogError("Recursed too deep.");
                 specificSolution = null;
                 rr = false;
                 return null;
@@ -1324,17 +1337,26 @@ namespace AIKit
 
             //base case: if all goal is true or doable, halt. specificSolution will return it in the most defninte terms (to be used by caller).
             SemSentence satisfiedConcretelyBy = null;
-            if (AlreadyDoneOrDoable(goal, out satisfiedConcretelyBy, ref rr))
+            bool mustDoSomething = false;
+            if (AlreadyDoneOrDoable(goal, out satisfiedConcretelyBy, ref rr, out mustDoSomething))
             {
                 //signal to replace goal with more specific version & return empty plan (bc its already done!)
                 var newPlan = new Queue<SemSentence>();
                 specificSolution = satisfiedConcretelyBy;
-                Debug.LogWarning("Goal " + goal.ToString() + " is true or doable, specifically " + satisfiedConcretelyBy.ToString());
+                if (Prefs.DEBUG) Debug.LogWarning("Goal " + goal.ToString() + " is true or doable, specifically " + satisfiedConcretelyBy.ToString());
+
+                if (mustDoSomething)
+                {
+                    SemSentence toDo = SemSentence.NewCopy(satisfiedConcretelyBy);
+                    toDo.vp.verb = AIKit_Grammar.EntryFor(toDo.vp.verb.ToString().Substring(3)); //remove the "can" from the verb here
+                    newPlan.Enqueue(toDo);
+                }
+
                 return newPlan;
                 // if RR, specificsolution should have a referent for the caller's pronoun fill!
             }
 
-            Debug.LogWarning("Goal "+ goal.ToString() +" is not true or doable, continuing...");
+            if (Prefs.DEBUG) Debug.LogWarning("Goal "+ goal.ToString() +" is not true or doable, continuing...");
 
             //methods to achieve directly thru logic (no need for RR... unless caller requested it)
             List<(SemSentence, bool)> methods = GetWaysTo(goal).ConvertAll(g => (g,false || rr)); //bool here is if RR mode is on
@@ -1344,7 +1366,7 @@ namespace AIKit
             {
                 SemSentence canGoal = SemSentence.NewCopy(goal);
                 canGoal.vp.verb = AIKit_Grammar.EntryFor("can" + goal.vp.verb.ToString());
-                Debug.LogWarning("Since subject is self, Also checking for ways to "+canGoal.ToString());
+                if (Prefs.DEBUG) Debug.LogWarning("Since subject is self, Also checking for ways to "+canGoal.ToString());
                 methods.AddRange(GetWaysTo(canGoal).ConvertAll(g => (g, true)));
             }
 
@@ -1364,7 +1386,7 @@ namespace AIKit
                 List<SemSentence> remainingGoals = new List<SemSentence>();
                 remainingGoals.Add(goal); //later addrange
                 bool rr_copy = rr;
-                remainingGoals.RemoveAll((g) => AlreadyDoneOrDoable(g, out _, ref rr_copy));
+                remainingGoals.RemoveAll((g) => AlreadyDoneOrDoable(g, out _, ref rr_copy, out _));
 
                 //undo assumption
                 DeleteEdges(undo);
@@ -1393,7 +1415,7 @@ namespace AIKit
                     if (m.Item1 == methodWithPronouns) t = "<<<" + t + ">>>";
                     log += t + "\t";
                 }
-                Debug.Log(log);
+                if (Prefs.DEBUG) Debug.Log(log);
                 ////////////////
                 ///
 
@@ -1402,12 +1424,12 @@ namespace AIKit
                 SemSentence methodSatisfiedConcretelyBy;
                 if (methodNoPronouns == methodWithPronouns)
                 {
-                    Debug.Log("method has no pronouns, resetting RR");
+                    if (Prefs.DEBUG) Debug.Log("method has no pronouns, resetting RR");
                     needConcrete = false; //if referent is not shared (no pronouns in method) we can go back to abstracts
                 }
                 else
                 {
-                    Debug.Log("method "+methodWithPronouns.ToString()+" has pronouns, passing down RR ("+needConcrete+")");
+                    if (Prefs.DEBUG) Debug.Log("method "+methodWithPronouns.ToString()+" has pronouns, passing down RR ("+needConcrete+")");
                 }
                 Queue<SemSentence> planToMethod = PlanToRecursively(remainingGoals[remainingGoals.Count-1], out methodSatisfiedConcretelyBy, needConcrete, depth-1);
 
@@ -1421,7 +1443,7 @@ namespace AIKit
 
                 //fill our goal using template
                 specificSolution = AIKit_Grammar.FillTemplatePronouns(goal, methodWithPronouns, methodSatisfiedConcretelyBy);
-                Debug.LogWarning("Goal " + goal.ToString() + " planning complete for method: " + methodSatisfiedConcretelyBy + ", specific solution: " + specificSolution.ToString());
+                if (Prefs.DEBUG) Debug.LogWarning("Goal " + goal.ToString() + " planning complete for method: " + methodSatisfiedConcretelyBy + ", specific solution: " + specificSolution.ToString());
 
                 //pronoun filling a goal doesnt make sense.... how would we know the pronouns of the goal?
 
@@ -1456,7 +1478,7 @@ namespace AIKit
             }
 
             //All methods fail?
-            Debug.LogError("All methods exhausted for goal: " + goal.ToString());
+            if (Prefs.DEBUG) Debug.LogError("All methods exhausted for goal: " + goal.ToString());
             specificSolution = null;
             return null;
         }
@@ -1488,12 +1510,12 @@ namespace AIKit
 
         //    while (plan.Count>0 && !TrueOrDoable(plan.Peek())) 
         //    {
-        //        Debug.Log(plan.Peek().ToString()+" is not True or Doable and plan's not empty, so still planning...");
+        //        if (Prefs.DEBUG) Debug.Log(plan.Peek().ToString()+" is not True or Doable and plan's not empty, so still planning...");
 
         //        //if we've exhausted all possible ways to do this (negative alternatives)
         //        if (alternatives.Peek() < 0) 
         //        {
-        //            Debug.Log("Exhausted ways to " + plan.Peek().ToString());
+        //            if (Prefs.DEBUG) Debug.Log("Exhausted ways to " + plan.Peek().ToString());
                     
         //            plan.Pop();
         //            methods.Pop();
@@ -1507,13 +1529,13 @@ namespace AIKit
 
         //        List<SemSentence> m = methods.Peek();
 
-        //        Debug.Log("Found " + m.Count + " methods to " + plan.Peek().ToString());
+        //        if (Prefs.DEBUG) Debug.Log("Found " + m.Count + " methods to " + plan.Peek().ToString());
 
         //        //if there were no methods found to do this
         //        if (m.Count < 1) 
         //        {
         //            lastFailedStepMessage = "No methods to " + plan.Peek().ToString();
-        //            Debug.Log(lastFailedStepMessage);
+        //            if (Prefs.DEBUG) Debug.Log(lastFailedStepMessage);
 
         //            plan.Pop();
         //            methods.Pop();
@@ -1525,7 +1547,7 @@ namespace AIKit
         //        //if this is our first attempt at this, add an alternatives #
         //        if (alternatives.Count == plan.Count) 
         //        {
-        //            Debug.Log("This is our first attempt. Leaving room for "+ (m.Count - 1) +" alternatives");
+        //            if (Prefs.DEBUG) Debug.Log("This is our first attempt. Leaving room for "+ (m.Count - 1) +" alternatives");
 
         //            plan.Push(m[m.Count - 1]);
 
@@ -1540,7 +1562,7 @@ namespace AIKit
         //        //if this is not our first attempt at this, simply add the methods given by alt #
         //        else 
         //        {
-        //            Debug.Log("This is not our first attempt. Trying next method.");
+        //            if (Prefs.DEBUG) Debug.Log("This is not our first attempt. Trying next method.");
 
         //            plan.Push(m[alternatives.Peek()]);
 
@@ -1551,10 +1573,10 @@ namespace AIKit
         //    }
 
         //    if (plan.Count>0 && TrueOrDoable(plan.Peek())) {
-        //        Debug.LogWarning("Successfully planned how to "+goal.ToString()+": "+string.Join(", then ", new List<SemSentence>(plan.ToArray())));
+        //        if (Prefs.DEBUG) Debug.LogWarning("Successfully planned how to "+goal.ToString()+": "+string.Join(", then ", new List<SemSentence>(plan.ToArray())));
         //    }
         //    else {
-        //        Debug.LogError("Failed to plan how to "+goal.ToString()+"... \tLast Fail:" + lastFailedStepMessage);
+        //        if (Prefs.DEBUG) Debug.LogError("Failed to plan how to "+goal.ToString()+"... \tLast Fail:" + lastFailedStepMessage);
         //    }
 
         //    return plan;
@@ -1566,7 +1588,7 @@ namespace AIKit
             //cost: calculated per verb
             if (s.IsImplication())
             {
-                Debug.LogError("Tried to find cost of a non-literal sentence: " + s.ToString() );
+                if (Prefs.DEBUG) Debug.LogError("Tried to find cost of a non-literal sentence: " + s.ToString() );
                 return 10;
             }
             if (s.IsCompound())
@@ -1588,7 +1610,7 @@ namespace AIKit
         public List<SemSentence> GetResultsFrom(SemSentence fact) {
             List<SemSentence> allResultsFrom = new List<SemSentence>();
 
-            //Debug.Log("resultsFrom Dictionary content:" + string.Join(", ", this.resultsFrom));
+            //if (Prefs.DEBUG) Debug.Log("resultsFrom Dictionary content:" + string.Join(", ", this.resultsFrom));
             
             SemanticWebNode subjNode = this.lexicalMemory.GetOrInsert(fact.np);
             List<SemanticWebNode> objNodes = fact.vp.objects.ConvertAll((obj) => lexicalMemory.GetOrInsert(obj));
@@ -1604,7 +1626,7 @@ namespace AIKit
             }
             */
 
-            //Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
+            //if (Prefs.DEBUG) Debug.Log("subjects: " + string.Join("/", subjMonikers) + ", objects: " + string.Join(" - ", objMonikers.ConvertAll((list) => string.Join("/", list))));
 
             foreach (SemNP subjectMoniker in subjMonikers) {
                 //if we only have sentencial objects in our goal just try one sentence with that
@@ -1620,19 +1642,19 @@ namespace AIKit
                         aliasedFact.np = subjectMoniker;
                         aliasedFact.vp.objects[obj_index] = object_i_Moniker;
 
-                        //Debug.Log("Checking dict for \t" + aliasedFact.ToString());
+                        //if (Prefs.DEBUG) Debug.Log("Checking dict for \t" + aliasedFact.ToString());
 
                         if (this.resultsFrom.ContainsKey(aliasedFact)) {
                             List<SemSentence> results = AliasedResultsFrom(aliasedFact, new List<SemNP> { object_i_Moniker, subjectMoniker }, new List<SemNP> { fact.vp.objects[obj_index], fact.np });
                             allResultsFrom.AddRange(results);
-                            //Debug.Log("Added " + results.Count + " results.");
+                            //if (Prefs.DEBUG) Debug.Log("Added " + results.Count + " results.");
                         }
-                        //Debug.Log("Now have " + allResultsFrom.Count + " results.");
+                        //if (Prefs.DEBUG) Debug.Log("Now have " + allResultsFrom.Count + " results.");
                     }
                 }
             }
 
-            //Debug.Log("Derived "+allResultsFrom.Count+" rule-based results from "+fact.ToString()+":\n\t"+string.Join(",\n\t", allResultsFrom));
+            //if (Prefs.DEBUG) Debug.Log("Derived "+allResultsFrom.Count+" rule-based results from "+fact.ToString()+":\n\t"+string.Join(",\n\t", allResultsFrom));
             return allResultsFrom;
         }
 
@@ -1644,7 +1666,7 @@ namespace AIKit
                     SemNP original = originals[i];
 
                     //replace any NP that match the moniker with the original
-                    //Debug.LogWarning("Replacing all occurrences of "+moniker.ToString()+" with "+original.ToString()+"in the sentence: "+aliasedGoal.ToString());
+                    //if (Prefs.DEBUG) Debug.LogWarning("Replacing all occurrences of "+moniker.ToString()+" with "+original.ToString()+"in the sentence: "+aliasedGoal.ToString());
                     if (method.np == moniker)
                         method.np = original;
                     for (int j = 0; j < method.vp.objects.Count; j++) {
@@ -1842,9 +1864,9 @@ namespace AIKit
         public void Insert(Sentence s, float salience) {
             EpisodicMemoryEntry eme = new EpisodicMemoryEntry(s, salience);
             if (entries.ContainsKey(eme.sentence.utterance)) {
-                Debug.Log("Episodic Memory already contained key: " + eme.sentence.utterance.Description());
+                if (Prefs.DEBUG) Debug.Log("Episodic Memory already contained key: " + eme.sentence.utterance.Description());
                 eme.sentence.utterance.tick();
-                Debug.Log("Ticked version: " + eme.sentence.utterance.Description());
+                if (Prefs.DEBUG) Debug.Log("Ticked version: " + eme.sentence.utterance.Description());
             }
             entries.Add(eme.sentence.utterance, eme);
         }
@@ -1898,7 +1920,7 @@ namespace AIKit
         public SemanticWebNode GetOrInsert(SemNP np, bool suppress = false) {
 
             List<LexicalMemoryEntry> matches = null;
-            //Debug.LogError("Searching for " + np.ToString() + "among " + String.Join("/", entries.Keys));
+            //if (Prefs.DEBUG) Debug.LogError("Searching for " + np.ToString() + "among " + String.Join("/", entries.Keys));
             if (entries.TryGetValue(np.ToString(), out matches)) {
                 //merge?
 
@@ -1908,13 +1930,13 @@ namespace AIKit
                     {
                         if (!suppress)
                         {
-                            Debug.LogWarning("Node found: " + np.ToString() + " matched " + NodeInfo(m.node, null));
+                            //if (Prefs.DEBUG) Debug.LogWarning("Node found: " + np.ToString() + " matched " + NodeInfo(m.node, null));
                         }
                         return m.node;
                     }
                 }
             }
-            //Debug.LogError("Didn't find.");
+            //if (Prefs.DEBUG) Debug.LogError("Didn't find.");
 
             SemanticWebNode newNode = new SemanticWebNode(np); //new node created and it has this as an alias
 
@@ -1935,11 +1957,11 @@ namespace AIKit
                 why.vp.verb = AIKit_Grammar.EntryFor("is");
                 why.vp.objects.Add(something);
 
-                //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
+                //if (Prefs.DEBUG) Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
 
                 newNode.AddEdgeTo(AIKit_Grammar.EntryFor("is"), someNode, new Sentence(why), 0.5f);
 
-                Debug.LogWarning("First occurrence of "+ np.ToString() + " Added is->some thing");
+                if (Prefs.DEBUG) Debug.LogWarning("First occurrence of "+ np.ToString() + " Added is->some thing");
             }
 
             //if x is proper noun, x is a thing (bc we won't use "any" on it)
@@ -1960,11 +1982,11 @@ namespace AIKit
                 why.vp.verb = AIKit_Grammar.EntryFor("is");
                 why.vp.objects.Add(something);
 
-                //Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
+                //if (Prefs.DEBUG) Debug.LogWarning("should add edge indicating that "+np.ToString()+" is "+something.ToString()+".");
 
                 newNode.AddEdgeTo(AIKit_Grammar.EntryFor("is"), someNode, new Sentence(why), 0.5f);
 
-                Debug.LogWarning("First occurrence of " + np.ToString() + " Added is->some thing");
+                if (Prefs.DEBUG) Debug.LogWarning("First occurrence of " + np.ToString() + " Added is->some thing");
             }
 
             //add this SemanticWebNode to the lexical memory
@@ -1976,7 +1998,7 @@ namespace AIKit
                 entries.Add(np.ToString(),new List<LexicalMemoryEntry>() {lme});
             }
 
-            Debug.LogWarning("First occurrence of "+np.ToString()+", created node: "+ NodeInfo(newNode, null));
+            if (Prefs.DEBUG) Debug.LogWarning("First occurrence of "+np.ToString()+", created node: "+ NodeInfo(newNode, null));
 
             return lme.node;
         }

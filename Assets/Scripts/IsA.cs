@@ -57,6 +57,8 @@ namespace AIKit
                 if (noun.wordClass == WordClass.N)
                     np.determiner = AIKit_Grammar.EntryFor("a");
                 NPs.Add(np);
+                SemNP np2 = new SemNP(np) { determiner = AIKit_Grammar.EntryFor("some") };
+                NPs.Add(np2);
             }
             return NPs;
         }

@@ -58,7 +58,7 @@ public class BeAnEntity : MonoBehaviour
                 return;
             }
 
-            Debug.Log(EntityName+" notices "+obj.ToString());
+            if (Prefs.DEBUG) Debug.Log(EntityName+" notices "+obj.ToString());
             transform.LookAt(other.transform);
             this.GetSelf().GainPerceptOf(obj.ApparentNPs());
         }
@@ -68,7 +68,7 @@ public class BeAnEntity : MonoBehaviour
         AIKit.IsA obj = other.gameObject.GetComponent<AIKit.IsA>();
 
         if (obj!=null){
-            Debug.Log(EntityName+" no longer sees"+obj.ToString());
+            if (Prefs.DEBUG) Debug.Log(EntityName+" no longer sees"+obj.ToString());
             this.GetSelf().LosePerceptOf(obj.ApparentNPs());
         }
     }
@@ -81,7 +81,7 @@ public class BeAnEntity : MonoBehaviour
             {
                 //Do what ever you want to do when an item is added here...
                 //the new items are available in e.NewItems
-                Debug.Log(EntityName+" notices "+obj.ToString());
+                if (Prefs.DEBUG) Debug.Log(EntityName+" notices "+obj.ToString());
                 this.gameObject.transform.LookAt(c.gameObject.transform);
                 this.self.GainPerceptOf(obj.ApparentNPs());
             }
@@ -117,7 +117,7 @@ public class BeAnEntity : MonoBehaviour
         foreach (GameObject gameObject in PerceptualContext) {
             AIKit.IsA obj = gameObject.GetComponent<AIKit.IsA>();
             if (!newArrivals.Contains(gameObject)) {
-                Debug.Log(EntityName+" no longer sees"+obj.ToString());
+                if (Prefs.DEBUG) Debug.Log(EntityName+" no longer sees"+obj.ToString());
                 this.self.LosePerceptOf(obj.ApparentNPs());
             }
         }
@@ -127,7 +127,7 @@ public class BeAnEntity : MonoBehaviour
         
         for (int i = 0; i < perceiveOnInit.Count; i++) {
             if (perceiveOnInit[i].initialized) {
-                Debug.Log(EntityName+" awakens and notices "+perceiveOnInit[i].ToString());
+                if (Prefs.DEBUG) Debug.Log(EntityName+" awakens and notices "+perceiveOnInit[i].ToString());
                 this.GetSelf().GainPerceptOf(perceiveOnInit[i].ApparentNPs());
                 perceiveOnInit.RemoveAt(i--);
             }
@@ -139,27 +139,29 @@ public class BeAnEntity : MonoBehaviour
         {
             this.self.processWitnessQueue();
             if (self.myGoals.Count > 0) {
+                Debug.Log("Goals for " + this.name + ": " + string.Join(",", self.myGoals));
+
                 if (this.self.knowledgeModule.isTrue(self.myGoals.Peek(), out _, false)) {
-                    Debug.Log(EntityName + " completed goal of "+self.myGoals.Peek().ToString() +"!");
+                    if (Prefs.DEBUG) Debug.Log(EntityName + " completed goal of "+self.myGoals.Peek().ToString() +"!");
                     self.myGoals.Pop();
                     self.curentPlan = null;
                     return;
                 }
 
                 if (self.curentPlan is null || self.curentPlan.Count<1 || self.curentPlan.ToArray()[self.curentPlan.Count - 1] != self.myGoals.Peek()) {
-                    Debug.Log("Planning how to "+self.myGoals.Peek().ToString());
+                    if (Prefs.DEBUG) Debug.Log("Planning how to "+self.myGoals.Peek().ToString());
                     self.curentPlan = self.knowledgeModule.PlanTo(self.myGoals.Peek());
                 }
 
                 if (self.curentPlan.Count < 1) 
                 {
-                    Debug.LogError("Plan to "+self.myGoals.Pop()+" was empty! Rip");
+                    if (Prefs.DEBUG) Debug.LogError("Plan to "+self.myGoals.Pop()+" was empty! Rip");
                 }
                 else 
                 {
                     //if this is false, the plan was invalidated!
                     if (!AIKit.AIKit_Actions.StepOnGoal(self.myGoals.Peek(), ref self.curentPlan, this.self, this.gameObject)) {
-                        Debug.LogError("Plan to "+self.myGoals.Pop()+" was invalidated! Rip");
+                        if (Prefs.DEBUG) Debug.LogError("Plan to "+self.myGoals.Pop()+" was invalidated! Rip");
                         //normally wouldn't do this, but lets prevent replanning we popped^
                         self.curentPlan = null;
                     }

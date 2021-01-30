@@ -148,9 +148,9 @@ namespace AIKit
                 bool referentMatch = (a.referent is null && b.referent is null)?true:(a.referent == b.referent);
                 return (a.word == b.word) && referentMatch;
             } catch (System.NullReferenceException e) {
-                Debug.LogError(e);
-                if (!(a is null)) Debug.Log("^ Tried to compare "+a.word);
-                if (!(b is null)) Debug.Log("^ Tried to compare "+b.word);
+                if (Prefs.DEBUG) Debug.LogError(e);
+                if (!(a is null)) if (Prefs.DEBUG) Debug.Log("^ Tried to compare "+a.word);
+                if (!(b is null)) if (Prefs.DEBUG) Debug.Log("^ Tried to compare "+b.word);
                 return false;
             }
         }
@@ -520,12 +520,12 @@ namespace AIKit
             Stack<ClassSemanticPair> skipped = new Stack<ClassSemanticPair>();
             Stack<ClassSemanticPair> parts = new Stack<ClassSemanticPair>();
 
-            //Debug.Log("Validating: " + string.Join(",", tokenStack));
+            //if (Prefs.DEBUG) Debug.Log("Validating: " + string.Join(",", tokenStack));
             bool lastAttempt = false;
 
             while (tokenStack.Count > 0)//&& ignoreTail < wordClassStack.Count)
             {
-                //Debug.Log("Now on: "+ string.Join(",", wordClassStack));
+                //if (Prefs.DEBUG) Debug.Log("Now on: "+ string.Join(",", wordClassStack));
                 var thisWord = tokenStack.Pop();
                 parts.Push(thisWord);
 
@@ -549,7 +549,7 @@ namespace AIKit
                 }
 
                 string wordClassString = thisWord.ToString();
-                //Debug.Log(wordClassString + ", {" + string.Join(",", parts) + "}, " + latestProduct.ToString() + (isnew ? "*" : ""));
+                //if (Prefs.DEBUG) Debug.Log(wordClassString + ", {" + string.Join(",", parts) + "}, " + latestProduct.ToString() + (isnew ? "*" : ""));
 
                 //if we fail, skip and try again
                 if (tokenStack.Count == 0 && !isnew && parts.Count > 0)
@@ -557,7 +557,7 @@ namespace AIKit
                     int n = parts.Count;
                     for (int i = 0; i < n; i++) tokenStack.Push(parts.Pop());
                     skipped.Push(tokenStack.Pop()); // remove tail
-                    //Debug.Log("Trying again, no tail: " + string.Join(",", tokenStack));
+                    //if (Prefs.DEBUG) Debug.Log("Trying again, no tail: " + string.Join(",", tokenStack));
                 }
 
                 //if we've skipped everything, pop all skips and try again... or fail, if we've done this before with no results.
@@ -569,7 +569,7 @@ namespace AIKit
                     {
                         int n = skipped.Count;
                         for (int i = 0; i < n; i++) tokenStack.Push(skipped.Pop());
-                        //Debug.Log("Re-added tail: " + string.Join(",", tokenStack));
+                        //if (Prefs.DEBUG) Debug.Log("Re-added tail: " + string.Join(",", tokenStack));
                         lastAttempt = true;
                     }
                 }
@@ -577,12 +577,12 @@ namespace AIKit
                 //success! only S remains.
                 if (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S && skipped.Count == 0 && parts.Count == 0)
                 {
-                    //Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
+                    //if (Prefs.DEBUG) Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
                     return (true, tokenStack.Peek().Item2 as SemSentence);
                 }
             }
 
-            //Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
+            //if (Prefs.DEBUG) Debug.Log("Result: " + (tokenStack.Count == 1 && tokenStack.Peek().Item1 == WordClass.S));
             return (false, null);
         }
 
@@ -829,7 +829,7 @@ namespace AIKit
             if (dictionary is null)
                 throw new System.Exception("No dictionary initialized!");
 
-            Debug.Log("Interpreting: '[[[" + string.Join(" ", words) + ".]]]...'");
+            if (Prefs.DEBUG) Debug.Log("Interpreting: '[[[" + string.Join(" ", words) + ".]]]...'");
 
             List<LexicalEntry> lexicalEntries = new List<LexicalEntry>();
 
@@ -837,7 +837,7 @@ namespace AIKit
             {
                 if (!dictionary.ContainsKey(words[i]))
                 {
-                    Debug.LogError("Unknown word: " + words[i]);
+                    if (Prefs.DEBUG) Debug.LogError("Unknown word: " + words[i]);
                     words[i] = "???";
                 }
                 else
@@ -854,7 +854,7 @@ namespace AIKit
             }
             else
             {
-                Debug.LogError(string.Join(" ", words.ToArray()));
+                if (Prefs.DEBUG) Debug.LogError(string.Join(" ", words.ToArray()));
                 throw new System.Exception("Sentence non-grammatical!");
             }
         }
@@ -900,12 +900,12 @@ namespace AIKit
 
         public static SemSentence FillTemplatePronouns(SemSentence sentenceToFill, SemSentence sentenceWithPronouns, SemSentence sentenceWithAntecedents)
         {
-            Debug.LogError("Filling " + sentenceToFill.ToString() + " with words from " + sentenceWithAntecedents + " from templates " + sentenceWithPronouns);
+            if (Prefs.DEBUG) Debug.LogError("Filling " + sentenceToFill.ToString() + " with words from " + sentenceWithAntecedents + " from templates " + sentenceWithPronouns);
 
             SemSentence sToFill = SemSentence.NewCopy(sentenceToFill);
             if (sentenceToFill.IsCompound() || sentenceToFill.IsImplication() || sentenceWithPronouns.IsCompound() || sentenceWithPronouns.IsImplication() || sentenceWithAntecedents.IsCompound() || sentenceWithAntecedents.IsImplication()) return sToFill; // TODO: make this work for impl and comp one day
 
-            Debug.LogError("Filling sentences all valid!");
+            if (Prefs.DEBUG) Debug.LogError("Filling sentences all valid!");
 
             //check if subj is pronoun
             if (sentenceWithPronouns.np.noun.generativeWordClass == GenerativeWordClass.Deictic)
@@ -1017,7 +1017,7 @@ namespace AIKit
                 }
             }
 
-            if (grabbed is null) Debug.LogError("Somehow the template's flex wasn't found!");
+            if (grabbed is null) if (Prefs.DEBUG) Debug.LogError("Somehow the template's flex wasn't found!");
 
             //apply
             SemSentence targetFilled = target;
@@ -1036,16 +1036,16 @@ namespace AIKit
             if (!dictReady) 
             {
                 dictionary = new Dictionary<string, LexicalEntry>();
-                Debug.Log("Parsing word lists into Dicitonary...");
+                if (Prefs.DEBUG) Debug.Log("Parsing word lists into Dicitonary...");
                 ParseDictionary();
-                Debug.Log("Dicitonary complete.");
+                if (Prefs.DEBUG) Debug.Log("Dicitonary complete.");
             }
 
             ParseGrammarRules();
-            Debug.Log("Loaded " + rules.Count + " grammar rules.");
+            if (Prefs.DEBUG) Debug.Log("Loaded " + rules.Count + " grammar rules.");
 
             entity = EntityToTalkTo.GetComponent<BeAnEntity>().GetSelf();
-            Debug.Log("Loaded entity: " + entity.GetName());
+            if (Prefs.DEBUG) Debug.Log("Loaded entity: " + entity.GetName());
             beAnEntity = EntityToTalkTo.GetComponent<BeAnEntity>();
             
             chatWindow = new List<string>();
@@ -1054,7 +1054,7 @@ namespace AIKit
                 try{
                 Sentence sentenceParsed = Interpret(new List<string>(s.ToLower().Split(' ')));
                 string deb = "Parsed '"+s+"' to: "+sentenceParsed.ToString();
-                Debug.Log(deb);
+                if (Prefs.DEBUG) Debug.Log(deb);
                 chatWindow.Add(deb);
                 entity.addMemory(sentenceParsed);
                 } catch {
@@ -1062,7 +1062,7 @@ namespace AIKit
                 }
             }
 
-            //Debug.Log("known as:" + string.Join("/",entity.knowledgeModule.GetHyponymsOf(entity.knowledgeModule.lexicalMemory.GetOrInsert(entity.GetName()))));
+            //if (Prefs.DEBUG) Debug.Log("known as:" + string.Join("/",entity.knowledgeModule.GetHyponymsOf(entity.knowledgeModule.lexicalMemory.GetOrInsert(entity.GetName()))));
             /*
             string str = "the woman kill the monster";
             Sentence s1 = Interpret(new List<string>(str.ToLower().Split(' ')));
@@ -1072,10 +1072,10 @@ namespace AIKit
             
             str = "the woman eat it";
             Sentence s3 = Interpret(new List<string>(str.ToLower().Split(' ')));
-            Debug.LogError("Match between "+s1.GetSemantics().ToString()+" and "+s2.GetSemantics().ToString()+"?:"+(s1.GetSemantics()==s2.GetSemantics()));
+            if (Prefs.DEBUG) Debug.LogError("Match between "+s1.GetSemantics().ToString()+" and "+s2.GetSemantics().ToString()+"?:"+(s1.GetSemantics()==s2.GetSemantics()));
             
             SemSentence s4 = ReplaceFlex(s2.GetSemantics(), s1.GetSemantics(), s3.GetSemantics());
-            Debug.LogError("Filled template: "+s4.ToString());*/
+            if (Prefs.DEBUG) Debug.LogError("Filled template: "+s4.ToString());*/
         }
 
         // Update is called once per frame
@@ -1104,7 +1104,7 @@ namespace AIKit
                         if (givenSentence.Contains(" is ")) {
                             string [] splitVersion = givenSentence.Split(new [] { " is " }, 2, System.StringSplitOptions.RemoveEmptyEntries);
                             string flippedVerison = splitVersion[1] + " is " + splitVersion[0];
-                            Debug.Log("Failed, now trying to flip: ");
+                            if (Prefs.DEBUG) Debug.Log("Failed, now trying to flip: ");
                             sentenceParsed = Interpret(new List<string>(flippedVerison.ToLower().Split(' ')));
                         } 
                         else 
@@ -1115,18 +1115,18 @@ namespace AIKit
                     }
 
                     string s = "Parsed Query '"+givenSentence+"?' to: "+sentenceParsed.ToString();
-                    Debug.Log(s);
+                    if (Prefs.DEBUG) Debug.Log(s);
                     chatWindow.Add(s);
                     
                     //foreach (Memory m in entity.QueryMemories(sentenceParsed.GetLexicalEntryList())) {
                     //    s = "Response: "+m.GetSentence().ToString()+" - "+m.GetSentence().ToLiteralString();
-                    //    Debug.Log(s);
+                    //    if (Prefs.DEBUG) Debug.Log(s);
                     //    chatWindow.Add(s);
                     //}
                 }else {
                     sentenceParsed = Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
                     string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.ToString();
-                    Debug.Log(s);
+                    if (Prefs.DEBUG) Debug.Log(s);
                     chatWindow.Add(s);
                     
                     entity.addMemory(sentenceParsed);
@@ -1143,11 +1143,11 @@ namespace AIKit
                 if (dictionary.ContainsKey(givenWord)) {
                     wordParsed = dictionary[givenWord];
                     string s = "Parsed "+givenWord+" to: "+wordParsed.ToString();
-                    Debug.Log(s);
+                    if (Prefs.DEBUG) Debug.Log(s);
                     chatWindow.Add(s);
                 } else {
                     string s = "Word "+givenWord+" not recognized.";
-                    Debug.Log(s);
+                    if (Prefs.DEBUG) Debug.Log(s);
                     chatWindow.Add(s);
                 }
                 
@@ -1207,22 +1207,22 @@ namespace AIKit
                 /*givengoal = GUI.TextField(new Rect(100, 500, 200, 20), givengoal).ToLower();
                 if (GUI.Button(new Rect(100, 540, 100, 60), "PlanTo Goal")) 
                 {
-                    Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
+                    if (Prefs.DEBUG) Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
                     Sentence goalparsed = Interpret(new List<string>(givengoal.ToLower().Split(' ')));
                     string s = "Parsed '"+givengoal+"' to: "+goalparsed.GetSemantics().ToString();
-                    Debug.Log(s);
+                    if (Prefs.DEBUG) Debug.Log(s);
                     chatWindow.Add(s);
                     
                     Stack<SemSentence> plan = entity.knowledgeModule.PlanTo(goalparsed.GetSemantics());
                     if (plan is null || plan.Count<1) {
-                        Debug.Log("planning failed!");
+                        if (Prefs.DEBUG) Debug.Log("planning failed!");
                     } else {
                         SemSentence[] plan_arr = plan.ToArray();
                         string str = "";
                         foreach (SemSentence step in plan_arr) {
                             str += step.ToString() + ",then..";
                         }
-                        Debug.Log("Given plan:"+str);
+                        if (Prefs.DEBUG) Debug.Log("Given plan:"+str);
                     }
                     
                 }*/
@@ -1230,13 +1230,13 @@ namespace AIKit
                 givengoal = GUI.TextField(new Rect(100, 500, 200, 20), givengoal).ToLower();
                 if (GUI.Button(new Rect(100, 540, 150, 40), "Add Goal to Entity")) 
                 {
-                    //Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
+                    //if (Prefs.DEBUG) Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
                     Sentence goalparsed = Interpret(new List<string>(givengoal.ToLower().Split(' ')));
                     string s = "Parsed '"+givengoal+"' to: "+goalparsed.GetSemantics().ToString();
-                    //Debug.Log(s);
+                    //if (Prefs.DEBUG) Debug.Log(s);
                     chatWindow.Add(s);
                     
-                    Debug.Log("Pushed new goal to "+entity.GetName().ToString()+": "+goalparsed.ToLiteralString()+" // "+goalparsed.GetSemantics().ToString());
+                    if (Prefs.DEBUG) Debug.Log("Pushed new goal to "+entity.GetName().ToString()+": "+goalparsed.ToLiteralString()+" // "+goalparsed.GetSemantics().ToString());
                     entity.myGoals.Push(goalparsed.GetSemantics());
                     
                 }
@@ -1244,13 +1244,13 @@ namespace AIKit
                 GivenStatement = GUI.TextField(new Rect(100, 600, 200, 20), GivenStatement).ToLower();
                 if (GUI.Button(new Rect(100, 640, 100, 60), "Evaluate TRuth")) 
                 {
-                    Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
+                    if (Prefs.DEBUG) Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
                     Sentence statementParsed = Interpret(new List<string>(GivenStatement.ToLower().Split(' ')));
                     string s = "Parsed '"+GivenStatement+"' to: "+statementParsed.GetSemantics().ToString();
-                    Debug.Log(s);
+                    if (Prefs.DEBUG) Debug.Log(s);
                     chatWindow.Add(s);
                     
-                    Debug.Log("Truth value: "+entity.knowledgeModule.isTrue(statementParsed, out _));
+                    if (Prefs.DEBUG) Debug.Log("Truth value: "+entity.knowledgeModule.isTrue(statementParsed, out _));
                     
                 }
 

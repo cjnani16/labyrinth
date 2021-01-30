@@ -12,7 +12,7 @@ namespace AIKit
             SemSentence abilityCheck = SemSentence.NewCopy(action);
             abilityCheck.vp.verb = AIKit_Grammar.dictionary["can"+action.vp.verb.ToString()];
             if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck, out _, false)) {
-                Debug.LogError("Ability check is false:" + abilityCheck.ToString());
+                if (Prefs.DEBUGACTIONS) Debug.LogError("Ability check is false:" + abilityCheck.ToString());
                 return false;
             }
             //some actions require a definite target. like take...
@@ -22,7 +22,7 @@ namespace AIKit
             {
                 if (action.vp.objects.Count < 1 || !action.vp.objects.TrueForAll((obj) => { return !(obj.noun.GetReferent() is null); }))
                 {
-                    Debug.LogError("Ability check is false, no referent:" + abilityCheck.ToString());
+                    if (Prefs.DEBUGACTIONS) Debug.LogError("Ability check is false, no referent:" + abilityCheck.ToString());
                     return false;
                 }
             }
@@ -61,24 +61,24 @@ namespace AIKit
                 return true;
             }
 
-            Debug.LogError("I don't know how to:"+plan.Peek().vp.verb+", although I have the ability.");
+            if (Prefs.DEBUGACTIONS) Debug.LogError("I don't know how to:"+plan.Peek().vp.verb+", although I have the ability.");
             return false;
         }
 
         public static void StepOnEat(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
-            Debug.Log("Entity perorms EAT: "+plan.Peek());
+            if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms EAT: "+plan.Peek());
             entity.addMemory(new Sentence(plan.Peek()));
             plan.Pop();
         }
 
         public static void StepOnFind(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
-            Debug.Log("Entity perorms FIND: "+plan.Peek());
+            if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms FIND: "+plan.Peek());
             entity.addMemory(new Sentence(plan.Peek()));
             plan.Pop();
         }
 
         public static void StepOnTake(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
-            Debug.Log("Entity perorms TAKE: "+plan.Peek());
+            if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms TAKE: "+plan.Peek());
             SemSentence perform = SemSentence.NewCopy(plan.Peek());
 
             // Move our position a step closer to the target.
@@ -94,7 +94,7 @@ namespace AIKit
             //take once within x distance
             if (Vector3.Distance(entityGameObject.transform.position, target.position) < 2)
             {
-                GameObject.Destroy(target);
+                GameObject.Destroy(target.gameObject);
                 entity.addMemory(new Sentence(plan.Peek()));
                 plan.Pop();
             }
