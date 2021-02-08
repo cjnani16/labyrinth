@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+
 [ System.Serializable ]
 public class TerrainGenerator : MonoBehaviour
 {
@@ -21,6 +22,11 @@ public class TerrainGenerator : MonoBehaviour
     public float WallEccentricity = 10;
     public float WallRefinement = 0.01f;
     public float WallAmplitude = 20.0f;
+    public float WiggleFrequency = 1;
+    public float WiggleAmplitude = 10;
+    public double NodeSeparation = 60;
+    public int StampRadius = 20;
+    public int StepsToDraw = 50;
 
     //Settings for Land Generation
     [Header("Land Gen Settings")]
@@ -34,6 +40,8 @@ public class TerrainGenerator : MonoBehaviour
     float[,] heightMap;
     float[,,] alphaMaps;
     float PerlinSeed;
+
+    Dictionary<Cell, Microsoft.Msagl.Core.Layout.Node> celltoNode;
 
     //Helper Function
     int ConvertIndex(int x, int max, int othermax) {
@@ -54,6 +62,75 @@ public class TerrainGenerator : MonoBehaviour
 
     void ApplyHeightMap() {
         TerrainMain.terrainData.SetHeights( 0, 0, this.heightMap ) ;
+    }
+
+    Microsoft.Msagl.Core.Layout.GeometryGraph MazeToGraph(Cell[,] maze)
+    {
+        List<Microsoft.Msagl.Core.Layout.Node> nodes = new List<Microsoft.Msagl.Core.Layout.Node>();
+        Microsoft.Msagl.Core.Layout.GeometryGraph graph = new Microsoft.Msagl.Core.Layout.GeometryGraph();
+        celltoNode = new Dictionary<Cell, Microsoft.Msagl.Core.Layout.Node>();
+
+        //Make Nodes
+        foreach (Cell c in maze)
+        {
+            c.dijkstraVisited = false;//undo this for the wall drawing later
+            //if (!c.isWall) continue;
+            
+            Microsoft.Msagl.Core.Layout.Node msNode = new Microsoft.Msagl.Core.Layout.Node(Microsoft.Msagl.Core.Geometry.Curves.CurveFactory.CreateRectangle(10, 10, new Microsoft.Msagl.Core.Geometry.Point()),
+            c);
+            graph.Nodes.Add(msNode);
+            celltoNode[c] = msNode;
+        }
+
+
+        //Make Edges
+        foreach (Cell c in maze)
+        {
+            if (!c.isWall) continue;
+            foreach (Cell n in c.neighbors)
+            {
+                if (!n.isWall) continue;
+                Microsoft.Msagl.Core.Layout.Node msNode = celltoNode[c];
+                Microsoft.Msagl.Core.Layout.Node msNode2 = celltoNode[n];
+
+                Microsoft.Msagl.Core.Layout.Edge e = new Microsoft.Msagl.Core.Layout.Edge(msNode, msNode2, 0, 0, 10);
+                msNode.AddInEdge(e);
+                msNode2.AddOutEdge(e);
+                graph.Edges.Add(e);
+
+                if (c.isWall && n.isWall)
+                {
+                    Microsoft.Msagl.Core.Layout.Edge e2 = new Microsoft.Msagl.Core.Layout.Edge(msNode, msNode2, 0, 0, 100);
+                    msNode.AddInEdge(e2);
+                    msNode2.AddOutEdge(e2);
+                    graph.Edges.Add(e2);
+                }
+            }
+
+        }
+
+        //calc layout, apply positions to original TestNodeElements
+        var settings = new Microsoft.Msagl.Layout.MDS.MdsLayoutSettings();
+        settings.ScaleX = 10; //this.heightMap.GetLength(0);
+        settings.ScaleY = 10; //this.heightMap.GetLength(1);
+        settings.NodeSeparation = this.NodeSeparation;
+        Microsoft.Msagl.Miscellaneous.LayoutHelpers.CalculateLayout(graph, settings, null);
+
+        // Move model to positive axis.
+        graph.UpdateBoundingBox();
+        graph.Translate(new Microsoft.Msagl.Core.Geometry.Point(-graph.Left, -graph.Bottom));
+
+        //move nodes to actually be in heightmap positoins
+        var scalex = this.heightMap.GetLength(0) / maze.GetLength(0);
+        var scaley = this.heightMap.GetLength(1) / maze.GetLength(1);
+        foreach (var n in graph.Nodes)
+        {
+            var newx = (0.5f + (n.UserData as Cell).location.x) * scalex;
+            var newy = (0.5f + (n.UserData as Cell).location.y) * scaley;
+            n.BoundingBox = new Microsoft.Msagl.Core.Geometry.Rectangle(new Microsoft.Msagl.Core.DataStructures.Size(1,1), new Microsoft.Msagl.Core.Geometry.Point(newx, newy));
+        }
+
+        return graph;
     }
 
     //Maze Heightmap Generation
@@ -84,6 +161,123 @@ public class TerrainGenerator : MonoBehaviour
                     this.heightMap[i,j] = max_floor_height + 0.002f * WallEccentricity;
                 }
             }
+        }
+    }
+
+    void GenerateMazeTerrain( Microsoft.Msagl.Core.Layout.GeometryGraph graph, int n )
+    {
+        //drag a stamp across the screen until we hit all the nodes. If we aren't moving between adjacent nodes, pick it up (don't drag)
+        Stack<Microsoft.Msagl.Core.Layout.Node> stack = new Stack<Microsoft.Msagl.Core.Layout.Node>();
+        Stack<Microsoft.Msagl.Core.Layout.Node> lastNodes = new Stack<Microsoft.Msagl.Core.Layout.Node>();
+        stack.Push(graph.Nodes[0]);
+        Vector2Int stampPos = new Vector2Int((int)graph.Nodes[0].BoundingBox.Center.X, (int)graph.Nodes[0].BoundingBox.Center.Y);
+        int l = 0;
+        while ((n-- > 0) && stack.Count > 0)
+        {
+            var targetNode = stack.Peek();
+            var targetCell = targetNode.UserData as Cell;
+
+            Vector2Int targetPos = new Vector2Int((int)targetNode.BoundingBox.Center.X, (int)targetNode.BoundingBox.Center.Y);
+
+            //once we reach target, push its neighbors and pop it.
+            
+            if (Vector2Int.Distance(stampPos, targetPos) < 10)
+            {
+                //stamp
+                for (var dx = -StampRadius; dx < StampRadius; dx++)
+                {
+                    for (var dy = -StampRadius; dy < StampRadius; dy++)
+                    {
+                        if (Mathf.Pow(dx, 2) + Mathf.Pow(dy, 2) >= Mathf.Pow(StampRadius, 2)) continue; //stamp in a circle
+                        Vector2Int pos = new Vector2Int(stampPos.x + dx, stampPos.y + dy);
+                        pos.Clamp(Vector2Int.zero, new Vector2Int(heightMap.GetLength(0) - 1, heightMap.GetLength(1) - 1));
+                        heightMap[pos.x, pos.y] = 0.002f * WallEccentricity;
+                    }
+                }
+
+                targetCell.dijkstraVisited = true;
+                bool bt = true;
+                var tc = stack.Pop();
+                stampPos.Set(targetPos.x, targetPos.y); //clip to target
+
+                foreach (Cell c in targetCell.neighbors)
+                {
+                    if (c.isWall && !c.dijkstraVisited)
+                    {
+                        stack.Push(tc);
+
+                        lastNodes.Push(tc);
+                        stack.Push(celltoNode[c]);
+                        bt = false;
+                        break;
+                    }
+                }
+
+                //if we're out of neighbors to visit
+                if (bt && lastNodes.Count > 0)
+                {
+                    var newloc = lastNodes.Pop().BoundingBox.Center;
+                    stampPos.Set((int)newloc.X, (int)newloc.Y);
+                }
+            }
+
+            else
+            {
+                //if we're moving between adjacent cells, drag
+                if (lastNodes.Count > 0 && (lastNodes.Peek().UserData as Cell).neighbors.Contains(targetCell))
+                {
+                    //stamp
+                    for (var dx = -StampRadius; dx < StampRadius; dx++)
+                    {
+                        for (var dy = -StampRadius; dy < StampRadius; dy++)
+                        {
+                            if (Mathf.Pow(dx, 2) + Mathf.Pow(dy, 2) >= Mathf.Pow(StampRadius, 2)) continue; //stamp in a circle
+                            Vector2Int pos = new Vector2Int(stampPos.x + dx, stampPos.y + dy);
+                            pos.Clamp(Vector2Int.zero, new Vector2Int(heightMap.GetLength(0) - 1, heightMap.GetLength(1) - 1));
+                            heightMap[pos.x, pos.y] = 0.002f * WallEccentricity;
+                        }
+                    }
+
+                    //move
+                    if (Vector2Int.Distance(stampPos, targetPos) < 11)
+                    {
+                        stampPos.Set(targetPos.x, targetPos.y);
+                    }
+                    else
+                    {
+                        Vector2 dir = targetPos - stampPos;
+                        dir.Normalize();
+                        float remaining = Vector2Int.Distance(stampPos, targetPos);
+
+                        stampPos += new Vector2Int((int)dir.x, (int)dir.y) * Mathf.Min(10, (int)remaining);
+
+                        float total = Vector2Int.Distance(new Vector2Int((int)lastNodes.Peek().BoundingBox.Center.X, (int)lastNodes.Peek().BoundingBox.Center.Y), targetPos);
+                        float sin_input_degrees = remaining / total * Mathf.PI;
+                        float wiggle_multiplier = Mathf.Sin(sin_input_degrees);
+
+                        float wiggleMagnitude = (Mathf.PerlinNoise(0, WiggleFrequency * (float)l++) - 0.5f) * WiggleAmplitude * wiggle_multiplier;
+                        var wiggle = wiggleMagnitude * Vector2.Perpendicular(dir);
+
+                        stampPos += new Vector2Int( (int)wiggle.x, (int)wiggle.y );
+                    }
+                }
+
+                //if we're popping back in the stack bc we hit a dead ed, just tp
+                else
+                {
+                    stampPos.Set(targetPos.x, targetPos.y);
+                }
+            }
+
+        }
+
+    }
+
+    void MakeGraphDebugCubes(Microsoft.Msagl.Core.Layout.GeometryGraph graph)
+    {
+        foreach (var n in graph.Nodes)
+        {
+            Debug.Log("Wall at (" + n.BoundingBox.Center.X +", "+n.BoundingBox.Center.Y + ")");
         }
     }
 
@@ -203,15 +397,31 @@ public class TerrainGenerator : MonoBehaviour
     }
 
 
-    public void RerollTerrain() {
+    public void RerollTerrain(int n) {
         ResetMaps();
+        Debug.Log("Heightmap size: " + heightMap.GetLength(0) + " x " + heightMap.GetLength(1));
         if (IncludeMaze) {
-            GenerateMazeTerrain(this.MazeGenerator.GetCells());
-            GenerateAlphaMaps(this.MazeGenerator.GetCells());
-            WarpHeightsAndAlphas();
+            //GenerateMazeTerrain(this.MazeGenerator.GetCells());
+            //GenerateAlphaMaps(this.MazeGenerator.GetCells());
+            //WarpHeightsAndAlphas();
+            var g = MazeToGraph(this.MazeGenerator.GetCells());
+            MakeGraphDebugCubes(g);
+            GenerateMazeTerrain(g, n);
         }
-        GenerateLandHeightMap();
+        //GenerateLandHeightMap();
         ApplyHeightMap();
-        ApplyAlphaMaps();
+        //ApplyAlphaMaps();
     }
+
+    IEnumerator Trace()
+    {
+        var n = 0;
+        while (n < StepsToDraw)
+        {
+            n += 15;
+            RerollTerrain(n);
+            yield return new WaitForSeconds(0.3f);
+        }
+    }
+
 }
