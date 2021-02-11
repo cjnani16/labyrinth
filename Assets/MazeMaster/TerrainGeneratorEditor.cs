@@ -19,7 +19,13 @@ public class TerrainGeneratorEditor : Editor
 
         if (GUILayout.Button("Generate Terrain")) {
             //terrGen.RerollTerrain();
-            terrGen.StartCoroutine("Trace");
+            if (terrGen.RealTime) {
+                terrGen.StartCoroutine("Trace");
+            }
+            else
+            {
+                terrGen.RerollTerrain(-1);
+            }
         }
 
         if (GUILayout.Button("Generate Chunky Terrain"))

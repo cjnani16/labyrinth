@@ -15,6 +15,7 @@ public class TerrainGenerator : MonoBehaviour
     public bool debug = true;
     public bool autoupdate = true;
     public bool IncludeMaze = true;
+    public bool RealTime = false;
 
     //Settings For Maze Terrain Generation
     [Header("Maze Terrain Gen Settings")]
@@ -27,6 +28,7 @@ public class TerrainGenerator : MonoBehaviour
     public double NodeSeparation = 60;
     public int StampRadius = 20;
     public int StepsToDraw = 50;
+    public int StepSize = 1;
 
     //Settings for Land Generation
     [Header("Land Gen Settings")]
@@ -172,7 +174,7 @@ public class TerrainGenerator : MonoBehaviour
         stack.Push(graph.Nodes[0]);
         Vector2Int stampPos = new Vector2Int((int)graph.Nodes[0].BoundingBox.Center.X, (int)graph.Nodes[0].BoundingBox.Center.Y);
         int l = 0;
-        while ((n-- > 0) && stack.Count > 0)
+        while ((n == -1 || n-- > 0) && stack.Count > 0)
         {
             var targetNode = stack.Peek();
             var targetCell = targetNode.UserData as Cell;
@@ -187,7 +189,7 @@ public class TerrainGenerator : MonoBehaviour
                 Debug.LogFormat("Going from {0} to {1}", last, target);
             }
             
-            if (Vector2Int.Distance(stampPos, targetPos) < 10)
+            if (Vector2Int.Distance(stampPos, targetPos) <= StepSize)
             {
                 //stamp
                 float remaining = Vector2Int.Distance(stampPos, targetPos);
@@ -292,7 +294,7 @@ public class TerrainGenerator : MonoBehaviour
                     }
 
                     //move
-                    if (Vector2Int.Distance(stampPos, targetPos) < 11)
+                    if (Vector2Int.Distance(stampPos, targetPos) < StepSize)
                     {
                         stampPos.Set(targetPos.x, targetPos.y);
                     }
@@ -300,7 +302,7 @@ public class TerrainGenerator : MonoBehaviour
                     {
                         Vector2 dir = targetPos - stampPos;
                         dir.Normalize();
-                        stampPos += new Vector2Int((int)dir.x, (int)dir.y) * Mathf.Min(10, (int)remaining);
+                        stampPos += new Vector2Int((int)dir.x, (int)dir.y) * Mathf.Min(StepSize, (int)remaining);
                     }
                 }
 
@@ -464,7 +466,7 @@ public class TerrainGenerator : MonoBehaviour
             SetAlphaMapsToGrass();
             GenerateMazeTerrain(g, n);
         }
-        //GenerateLandHeightMap();
+        GenerateLandHeightMap();
         ApplyHeightMap();
         ApplyAlphaMaps();
     }
@@ -485,7 +487,7 @@ public class TerrainGenerator : MonoBehaviour
         {
             n += 5;
             RerollTerrain(n);
-            yield return new WaitForSeconds(0.2f);
+            yield return new WaitForSeconds(0.02f);
         }
     }
 
