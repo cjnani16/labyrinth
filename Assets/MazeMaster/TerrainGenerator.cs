@@ -180,18 +180,37 @@ public class TerrainGenerator : MonoBehaviour
             Vector2Int targetPos = new Vector2Int((int)targetNode.BoundingBox.Center.X, (int)targetNode.BoundingBox.Center.Y);
 
             //once we reach target, push its neighbors and pop it.
+            if (n == 0)
+            {
+                string target = string.Format("({0},{1})", targetCell.location.x, targetCell.location.y);
+                string last = lastNodes.Count > 0 ? string.Format("({0},{1})", (lastNodes.Peek().UserData as Cell).location.x, (lastNodes.Peek().UserData as Cell).location.y) : "<NONE>";
+                Debug.LogFormat("Going from {0} to {1}", last, target);
+            }
             
             if (Vector2Int.Distance(stampPos, targetPos) < 10)
             {
                 //stamp
+                float remaining = Vector2Int.Distance(stampPos, targetPos);
+                float total = (lastNodes.Count > 0) ? Vector2Int.Distance(new Vector2Int((int)lastNodes.Peek().BoundingBox.Center.X, (int)lastNodes.Peek().BoundingBox.Center.Y), targetPos) : remaining;
+                float sin_input_degrees = remaining / total * Mathf.PI;
+                float wiggle_multiplier = Mathf.Sin(sin_input_degrees);
+                float wiggleMagnitude = (Mathf.PerlinNoise(0, WiggleFrequency * (float)l++) - 0.5f) * WiggleAmplitude * wiggle_multiplier;
+                var wiggle = Vector2.Perpendicular(targetPos - stampPos);
+                wiggle.Normalize();
+                wiggle *= wiggleMagnitude;
+
                 for (var dx = -StampRadius; dx < StampRadius; dx++)
                 {
                     for (var dy = -StampRadius; dy < StampRadius; dy++)
                     {
                         if (Mathf.Pow(dx, 2) + Mathf.Pow(dy, 2) >= Mathf.Pow(StampRadius, 2)) continue; //stamp in a circle
-                        Vector2Int pos = new Vector2Int(stampPos.x + dx, stampPos.y + dy);
+                        Vector2Int pos = new Vector2Int(stampPos.x + dx + (int)wiggle.x, stampPos.y + dy + (int)wiggle.y);
                         pos.Clamp(Vector2Int.zero, new Vector2Int(heightMap.GetLength(0) - 1, heightMap.GetLength(1) - 1));
                         heightMap[pos.x, pos.y] = 0.002f * WallEccentricity;
+                        int alpha_x = ConvertIndex(pos.x, this.heightMap.GetLength(0), this.alphaMaps.GetLength(0));
+                        int alpha_y = ConvertIndex(pos.y, this.heightMap.GetLength(1), this.alphaMaps.GetLength(1));
+                        alphaMaps[alpha_x, alpha_y, 1] = 0.75f;
+                        alphaMaps[alpha_x, alpha_y, 0] = 0.25f;
                     }
                 }
 
@@ -227,14 +246,27 @@ public class TerrainGenerator : MonoBehaviour
                 if (lastNodes.Count > 0 && (lastNodes.Peek().UserData as Cell).neighbors.Contains(targetCell))
                 {
                     //stamp
+                    float remaining = Vector2Int.Distance(stampPos, targetPos);
+                    float total = Vector2Int.Distance(new Vector2Int((int)lastNodes.Peek().BoundingBox.Center.X, (int)lastNodes.Peek().BoundingBox.Center.Y), targetPos);
+                    float sin_input_degrees = remaining / total * Mathf.PI;
+                    float wiggle_multiplier = Mathf.Sin(sin_input_degrees);
+                    float wiggleMagnitude = (Mathf.PerlinNoise(0, WiggleFrequency * (float)l++) - 0.5f) * WiggleAmplitude * wiggle_multiplier;
+                    var wiggle = Vector2.Perpendicular(targetPos - stampPos);
+                    wiggle.Normalize();
+                    wiggle *= wiggleMagnitude;
+
                     for (var dx = -StampRadius; dx < StampRadius; dx++)
                     {
                         for (var dy = -StampRadius; dy < StampRadius; dy++)
                         {
                             if (Mathf.Pow(dx, 2) + Mathf.Pow(dy, 2) >= Mathf.Pow(StampRadius, 2)) continue; //stamp in a circle
-                            Vector2Int pos = new Vector2Int(stampPos.x + dx, stampPos.y + dy);
+                            Vector2Int pos = new Vector2Int(stampPos.x + dx + (int)wiggle.x, stampPos.y + dy + (int)wiggle.y);
                             pos.Clamp(Vector2Int.zero, new Vector2Int(heightMap.GetLength(0) - 1, heightMap.GetLength(1) - 1));
                             heightMap[pos.x, pos.y] = 0.002f * WallEccentricity;
+                            int alpha_x = ConvertIndex(pos.x, this.heightMap.GetLength(0), this.alphaMaps.GetLength(0));
+                            int alpha_y = ConvertIndex(pos.y, this.heightMap.GetLength(1), this.alphaMaps.GetLength(1));
+                            alphaMaps[alpha_x, alpha_y, 1] = 1;
+                            alphaMaps[alpha_x, alpha_y, 0] = 0;
                         }
                     }
 
@@ -247,18 +279,7 @@ public class TerrainGenerator : MonoBehaviour
                     {
                         Vector2 dir = targetPos - stampPos;
                         dir.Normalize();
-                        float remaining = Vector2Int.Distance(stampPos, targetPos);
-
                         stampPos += new Vector2Int((int)dir.x, (int)dir.y) * Mathf.Min(10, (int)remaining);
-
-                        float total = Vector2Int.Distance(new Vector2Int((int)lastNodes.Peek().BoundingBox.Center.X, (int)lastNodes.Peek().BoundingBox.Center.Y), targetPos);
-                        float sin_input_degrees = remaining / total * Mathf.PI;
-                        float wiggle_multiplier = Mathf.Sin(sin_input_degrees);
-
-                        float wiggleMagnitude = (Mathf.PerlinNoise(0, WiggleFrequency * (float)l++) - 0.5f) * WiggleAmplitude * wiggle_multiplier;
-                        var wiggle = wiggleMagnitude * Vector2.Perpendicular(dir);
-
-                        stampPos += new Vector2Int( (int)wiggle.x, (int)wiggle.y );
                     }
                 }
 
@@ -300,6 +321,18 @@ public class TerrainGenerator : MonoBehaviour
 
                 this.alphaMaps[i,j,0] = c.isWall? 0 : 1;
                 this.alphaMaps[i,j,1] = c.isWall? 1 : 0;
+            }
+        }
+    }
+
+    void SetAlphaMapsToGrass()
+    {
+        for (var i = 0; i < this.alphaMaps.GetLength(0); i++)
+        {
+            for (var j = 0; j < this.alphaMaps.GetLength(1); j++)
+            {
+                this.alphaMaps[i, j, 0] = 1;
+                this.alphaMaps[i, j, 1] = 0;
             }
         }
     }
@@ -399,18 +432,28 @@ public class TerrainGenerator : MonoBehaviour
 
     public void RerollTerrain(int n) {
         ResetMaps();
-        Debug.Log("Heightmap size: " + heightMap.GetLength(0) + " x " + heightMap.GetLength(1));
+        //Debug.Log("Heightmap size: " + heightMap.GetLength(0) + " x " + heightMap.GetLength(1));
         if (IncludeMaze) {
             //GenerateMazeTerrain(this.MazeGenerator.GetCells());
             //GenerateAlphaMaps(this.MazeGenerator.GetCells());
             //WarpHeightsAndAlphas();
             var g = MazeToGraph(this.MazeGenerator.GetCells());
-            MakeGraphDebugCubes(g);
+            //MakeGraphDebugCubes(g);
+            SetAlphaMapsToGrass();
             GenerateMazeTerrain(g, n);
         }
         //GenerateLandHeightMap();
         ApplyHeightMap();
-        //ApplyAlphaMaps();
+        ApplyAlphaMaps();
+    }
+
+    // old chunky gridlike walls (for debug)
+    public void ShowChunkyView()
+    {
+        GenerateMazeTerrain(this.MazeGenerator.GetCells());
+        GenerateAlphaMaps(this.MazeGenerator.GetCells());
+        ApplyHeightMap();
+        ApplyAlphaMaps();
     }
 
     IEnumerator Trace()
@@ -420,7 +463,7 @@ public class TerrainGenerator : MonoBehaviour
         {
             n += 15;
             RerollTerrain(n);
-            yield return new WaitForSeconds(0.3f);
+            yield return new WaitForSeconds(1f);
         }
     }
 

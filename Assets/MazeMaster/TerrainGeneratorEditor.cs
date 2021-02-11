@@ -13,13 +13,18 @@ public class TerrainGeneratorEditor : Editor
         if (DrawDefaultInspector()) {
             if (terrGen.autoupdate) {
                 //terrGen.RerollTerrain();
-                terrGen.StartCoroutine("Trace");
+                terrGen.StopCoroutine("Trace");
             }
         }
 
         if (GUILayout.Button("Generate Terrain")) {
             //terrGen.RerollTerrain();
             terrGen.StartCoroutine("Trace");
+        }
+
+        if (GUILayout.Button("Generate Chunky Terrain"))
+        {
+            terrGen.ShowChunkyView();
         }
     }
 }
