@@ -219,31 +219,52 @@ public class TerrainGenerator : MonoBehaviour
                 var tc = stack.Pop();
                 stampPos.Set(targetPos.x, targetPos.y); //clip to target
 
-                foreach (Cell c in targetCell.neighbors)
-                {
-                    if (c.isWall && !c.dijkstraVisited)
-                    {
-                        stack.Push(tc);
+                string target = string.Format("({0},{1})", targetCell.location.x, targetCell.location.y);
+                Debug.LogFormat("Reached {0}", target);
 
-                        lastNodes.Push(tc);
-                        stack.Push(celltoNode[c]);
-                        bt = false;
-                        break;
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        if (Mathf.Abs(dx) == 1 && Mathf.Abs(dy) == 1) continue;
+                        if (dx + targetCell.location.x >= this.MazeGenerator.GetCells().GetLength(0) || dx + targetCell.location.x < 0) continue;
+                        if (dy + targetCell.location.y >= this.MazeGenerator.GetCells().GetLength(1) || dy + targetCell.location.y < 0) continue;
+                        var c = this.MazeGenerator.GetCells()[dy + targetCell.location.y, dx + targetCell.location.x];
+
+                        if (c.isWall && !c.dijkstraVisited)
+                        {
+                            string neighbor = string.Format("({0},{1})", c.location.x, c.location.y);
+                            Debug.LogFormat("Chose neighbor {0}", neighbor);
+
+                            stack.Push(tc);
+
+                            lastNodes.Push(tc);
+                            stack.Push(celltoNode[c]);
+                            bt = false;
+                            break;
+                        }
                     }
                 }
 
                 //if we're out of neighbors to visit
                 if (bt && lastNodes.Count > 0)
                 {
-                    var newloc = lastNodes.Pop().BoundingBox.Center;
-                    stampPos.Set((int)newloc.X, (int)newloc.Y);
+                    if (stack.Count > 0)
+                    {
+                        string pop = string.Format("({0},{1})", (stack.Peek().UserData as Cell).location.x, (stack.Peek().UserData as Cell).location.y);
+                        Debug.LogFormat("Cell {0} has no neighbors left, ploppin back to target {1} to check for ITS neighbors", target, pop);
+
+                        var newloc = stack.Peek().BoundingBox.Center;
+                        stampPos.Set((int)newloc.X, (int)newloc.Y);
+                    }
                 }
             }
 
             else
             {
                 //if we're moving between adjacent cells, drag
-                if (lastNodes.Count > 0 && (lastNodes.Peek().UserData as Cell).neighbors.Contains(targetCell))
+                if (lastNodes.Count > 0 && ((lastNodes.Peek().UserData as Cell).location - targetCell.location).magnitude == 1)
                 {
                     //stamp
                     float remaining = Vector2Int.Distance(stampPos, targetPos);
@@ -286,7 +307,8 @@ public class TerrainGenerator : MonoBehaviour
                 //if we're popping back in the stack bc we hit a dead ed, just tp
                 else
                 {
-                    stampPos.Set(targetPos.x, targetPos.y);
+                    Debug.Log("Popped//non adjacent");
+                    stampPos.Set((int)lastNodes.Peek().BoundingBox.Center.X, (int)lastNodes.Peek().BoundingBox.Center.Y);
                 }
             }
 
@@ -461,9 +483,9 @@ public class TerrainGenerator : MonoBehaviour
         var n = 0;
         while (n < StepsToDraw)
         {
-            n += 15;
+            n += 5;
             RerollTerrain(n);
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(0.2f);
         }
     }
 
