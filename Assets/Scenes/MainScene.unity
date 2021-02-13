@@ -156,8 +156,8 @@ MonoBehaviour:
   RemakeMaze: 0
   autoupdate: 1
   debug: 1
-  rows: 11
-  cols: 11
+  rows: 21
+  cols: 21
   nBases: 0
   DrawMazeGUI: 0
   boxTexture: {fileID: 2800000, guid: 2d1ce73bef93246af9726ad5a33ea731, type: 3}
@@ -194,16 +194,15 @@ MonoBehaviour:
   debug: 1
   autoupdate: 1
   IncludeMaze: 1
-  PathEccentricity: 20
-  WallEccentricity: 50
-  WallRefinement: 0.04
-  WallAmplitude: 10
-  WiggleFrequency: 0.03
-  WiggleAmplitude: 100
+  RealTime: 1
+  WallHeight: 20
+  WiggleFrequency: 0.0005
+  WiggleAmplitude: 0
   NodeSeparation: 60
   StampRadius: 5
-  StepsToDraw: 2560
-  StepSize: 1
+  StepsToDraw: 100
+  StepSize: 5
+  IncludeLand: 0
   HillsRefinement: 0.005
   HillsAmplitude: 0.3
   NumOctaves: 6
@@ -291,7 +290,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 408730, guid: 7737647c22c1fc64a88d5cd030c352ce, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 8.2
+      value: 111.98
       objectReference: {fileID: 0}
     - target: {fileID: 408730, guid: 7737647c22c1fc64a88d5cd030c352ce, type: 3}
       propertyPath: m_LocalPosition.z
@@ -1038,6 +1037,10 @@ PrefabInstance:
     - target: {fileID: 400004, guid: 49a0e923d39ec3c4c8bb97699e2f2903, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2000000, guid: 49a0e923d39ec3c4c8bb97699e2f2903, type: 3}
+      propertyPath: far clip plane
+      value: 1400
       objectReference: {fileID: 0}
     - target: {fileID: 11400000, guid: 49a0e923d39ec3c4c8bb97699e2f2903, type: 3}
       propertyPath: m_Target
