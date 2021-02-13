@@ -13,18 +13,18 @@ public class TerrainGeneratorEditor : Editor
         if (DrawDefaultInspector()) {
             if (terrGen.autoupdate) {
                 //terrGen.RerollTerrain();
-                terrGen.StopCoroutine("Trace");
+                terrGen.StopCoroutine("GenerateMazeTerrainRealtime");
             }
         }
 
         if (GUILayout.Button("Generate Terrain")) {
             //terrGen.RerollTerrain();
             if (terrGen.RealTime) {
-                terrGen.StartCoroutine("Trace");
+                terrGen.RerollTerrainRealtime();
             }
             else
             {
-                terrGen.RerollTerrain(-1);
+                terrGen.RerollTerrain();
             }
         }
 

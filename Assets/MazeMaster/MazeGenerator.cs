@@ -211,7 +211,7 @@ public class MazeGenerator : MonoBehaviour
 
         if (this.maze==null) return;
 
-        scrollPosition = GUI.BeginScrollView(new Rect(300, 300, 3000, 1400), scrollPosition, new Rect(0, 0, boxSize*cols+50, boxSize*rows+50));
+        //scrollPosition = GUI.BeginScrollView(new Rect(300, 300, 3000, 1400), scrollPosition, new Rect(0, 0, boxSize*cols+50, boxSize*rows+50));
         for (int r=0; r<rows; r++) {
             for (int c=0; c<cols; c++) {
                 ref Cell cell = ref this.maze.cells [r, c];
@@ -226,6 +226,6 @@ public class MazeGenerator : MonoBehaviour
 
             }
         }
-        GUI.EndScrollView();
+        //GUI.EndScrollView();
     }
 }
