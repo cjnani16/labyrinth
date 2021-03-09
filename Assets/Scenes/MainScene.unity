@@ -206,13 +206,14 @@ MonoBehaviour:
   StepSize: 2
   IncludeLand: 1
   HillsRefinement: 0.005
-  HillsAmplitude: 0.3
+  HillsAmplitude: 0.45
   NumOctaves: 6
   Lacunarity: 2
   Persistence: 0.4
   MinGrassDensity: 4
   MaxGrassDensity: 20
   GrassFreq: 0.001
+  TextureWiggle: 0.01
   terrainTypes:
     serializedVersion: 2
     key0: {r: 0.4267978, g: 0.61106807, b: 0.6509434, a: 1}
