@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 
 [System.Serializable]
@@ -14,7 +15,10 @@ public class BeAnEntity : MonoBehaviour
     //public HashSet<GameObject> PerceptualContext;
     float dt;
 
-    void processGoalsStack() {
+    bool isPlanning = false;
+
+    void processGoalsStack()
+    {
         AIKit.Goal currentGoal = self.CurrentGoal();
     }
 
@@ -31,7 +35,8 @@ public class BeAnEntity : MonoBehaviour
         return null;
     }*/
 
-    public AIKit.Entity GetSelf() {
+    public AIKit.Entity GetSelf()
+    {
         if (self is null) this.self = new AIKit.Entity(EntityName.ToLower(), gameObject);
         return this.self;
     }
@@ -40,35 +45,40 @@ public class BeAnEntity : MonoBehaviour
     void Start()
     {
         self = GetSelf();
-        dt=0;
+        dt = 0;
         this.perceiveOnInit = new List<AIKit.IsA>();
         //this.PerceptualContext = new ObservableCollection<string>();
         //this.PerceptualContext.CollectionChanged += this.PerceptualContextChanged;
     }
 
-    void OnTriggerEnter(Collider other) {
+    void OnTriggerEnter(Collider other)
+    {
         if (!perceiving) return;
 
         AIKit.IsA obj = other.gameObject.GetComponent<AIKit.IsA>();
 
-        if (obj!=null){
+        if (obj != null)
+        {
             //sometimes we see thigns before the dictionary is ready.
-            if (!obj.initialized) {
+            if (!obj.initialized)
+            {
                 this.perceiveOnInit.Add(obj);
                 return;
             }
 
-            if (Prefs.DEBUG) Debug.Log(EntityName+" notices "+obj.ToString());
+            if (Prefs.DEBUG) Debug.Log(EntityName + " notices " + obj.ToString());
             transform.LookAt(other.transform);
             this.GetSelf().GainPerceptOf(obj.ApparentNPs());
         }
     }
 
-    void OnTriggerExit(Collider other) {
+    void OnTriggerExit(Collider other)
+    {
         AIKit.IsA obj = other.gameObject.GetComponent<AIKit.IsA>();
 
-        if (obj!=null){
-            if (Prefs.DEBUG) Debug.Log(EntityName+" no longer sees"+obj.ToString());
+        if (obj != null)
+        {
+            if (Prefs.DEBUG) Debug.Log(EntityName + " no longer sees" + obj.ToString());
             this.GetSelf().LosePerceptOf(obj.ApparentNPs());
         }
     }
@@ -124,60 +134,76 @@ public class BeAnEntity : MonoBehaviour
         PerceptualContext = newArrivals;
         */
 
-        
-        for (int i = 0; i < perceiveOnInit.Count; i++) {
-            if (perceiveOnInit[i].initialized) {
-                if (Prefs.DEBUG) Debug.Log(EntityName+" awakens and notices "+perceiveOnInit[i].ToString());
+
+        for (int i = 0; i < perceiveOnInit.Count; i++)
+        {
+            if (perceiveOnInit[i].initialized)
+            {
+                if (Prefs.DEBUG) Debug.Log(EntityName + " awakens and notices " + perceiveOnInit[i].ToString());
                 this.GetSelf().GainPerceptOf(perceiveOnInit[i].ApparentNPs());
                 perceiveOnInit.RemoveAt(i--);
             }
         }
-        
 
-        dt+=Time.deltaTime;
+
+        dt += Time.deltaTime;
         if ((int)dt % 1 == 0 && this.perceiving)  //replan every 1 second
         {
             this.self.processWitnessQueue();
-            if (self.myGoals.Count > 0) {
+            if (self.myGoals.Count > 0)
+            {
                 Debug.Log("Goals for " + this.name + ": " + string.Join(",", self.myGoals));
 
-                if (this.self.knowledgeModule.isTrue(self.myGoals.Peek(), out _, false)) {
-                    if (Prefs.DEBUG) Debug.Log(EntityName + " completed goal of "+self.myGoals.Peek().ToString() +"!");
+                if (this.self.knowledgeModule.isTrue(self.myGoals.Peek(), out _, false))
+                {
+                    if (Prefs.DEBUG) Debug.Log(EntityName + " completed goal of " + self.myGoals.Peek().ToString() + "!");
                     self.myGoals.Pop();
                     self.curentPlan = null;
                     return;
                 }
-
-                if (self.curentPlan is null || self.curentPlan.Count<1 || self.curentPlan.ToArray()[self.curentPlan.Count - 1] != self.myGoals.Peek()) {
-                    if (Prefs.DEBUG) Debug.Log("Planning how to "+self.myGoals.Peek().ToString());
-                    self.curentPlan = self.knowledgeModule.PlanTo(self.myGoals.Peek());
-                }
-
-                if (self.curentPlan.Count < 1) 
+                if (isPlanning)
                 {
-                    if (Prefs.DEBUG) Debug.LogError("Plan to "+self.myGoals.Pop()+" was empty! Rip");
+                    Debug.LogFormat("Still coming up with a plan for goal {0}", self.myGoals.Peek().ToString());
                 }
-                else 
+                if (self.curentPlan is null || self.curentPlan.Count < 1 || self.curentPlan.ToArray()[self.curentPlan.Count - 1] != self.myGoals.Peek())
+                {
+                    if (Prefs.DEBUG) Debug.Log("Planning how to " + self.myGoals.Peek().ToString());
+                    //self.curentPlan = self.knowledgeModule.PlanTo(self.myGoals.Peek());
+                    SetPlanAsync();
+                }
+                if (self.curentPlan.Count < 1)
+                {
+                    if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was empty! Rip");
+                }
+                else
                 {
                     //if this is false, the plan was invalidated!
-                    if (!AIKit.AIKit_Actions.StepOnGoal(self.myGoals.Peek(), ref self.curentPlan, this.self, this.gameObject)) {
-                        if (Prefs.DEBUG) Debug.LogError("Plan to "+self.myGoals.Pop()+" was invalidated! Rip");
+                    if (!AIKit.AIKit_Actions.StepOnGoal(self.myGoals.Peek(), ref self.curentPlan, this.self, this.gameObject))
+                    {
+                        if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was invalidated! Rip");
                         //normally wouldn't do this, but lets prevent replanning we popped^
                         self.curentPlan = null;
                     }
                 }
-                    
+
             }
-            
+
             /*this.decideNextGoal();
             this.ActOnGoals();*/
         }
 
-        if ((int)dt % 10 == 0) 
+        if ((int)dt % 10 == 0)
         {
             this.self.chillOut();
         }
 
-        if (dt > 100) dt=0;
+        if (dt > 100) dt = 0;
+    }
+
+    public async void SetPlanAsync()
+    {
+        isPlanning = true;
+        self.curentPlan = await Task.Run(() => self.knowledgeModule.PlanTo(self.myGoals.Peek()));
+        isPlanning = false;
     }
 }

@@ -56,10 +56,10 @@ namespace AIKit {
     {
         //Day/Season Length in Minutes
         public int StartYear=1641,  StartCycle=2, StartSeason=0, SeasonLength=10*60;
-        Date currentDate;
+        public static Date currentDate;
         bool gui = true;
 
-        public Date Now () {
+        public static Date Now () {
             return currentDate;
         }
 

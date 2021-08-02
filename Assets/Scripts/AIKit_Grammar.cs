@@ -118,22 +118,30 @@ namespace AIKit
         public GenerativeWordClass generativeWordClass;
         public Connotation connotation;
         GameObject referent;
+        string referentString;
+        int referentHash;
 
         public LexicalEntry(LexicalEntry le) {
             this.word = le.word; this.wordClass = le.wordClass; this.connotation = le.connotation; this.generativeWordClass = le.generativeWordClass;
             this.referent = le.GetReferent(); //TODO: always require?
+            this.referentString = le.referentString;
+            this.referentHash = le.referentHash;
         }
         public LexicalEntry(string s, WordClass wc, GenerativeWordClass gwc, Connotation c) {
             this.word = s; this.wordClass = wc; this.connotation = c; this.generativeWordClass=gwc;
             this.referent = null; //TODO: always require?
+            this.referentString = "";
+            this.referentHash = 0;
         }
 
         public override string ToString() {
-            return this.word + ((this.referent is null)?"":("=("+this.referent.ToString()+")"));
+            return this.word + (this.referent is null ? "" : "=("+this.referentString+")");
         }
 
         public void AffixReferent(GameObject o) {
-            this.referent = o; 
+            this.referent = o;
+            this.referentString = (o is null) ? "" : o.ToString();
+            this.referentHash = (o is null) ? 0 : o.GetHashCode();
         }
 
         public GameObject GetReferent() {
@@ -145,7 +153,7 @@ namespace AIKit
                 if (a is null != b is null) return false; //only one null? false
                 else if (a is null) return true; //both null? true
 
-                bool referentMatch = (a.referent is null && b.referent is null)?true:(a.referent == b.referent);
+                bool referentMatch = (a.referent is null && b.referent is null)?true:(a.referentString == b.referentString);
                 return (a.word == b.word) && referentMatch;
             } catch (System.NullReferenceException e) {
                 if (Prefs.DEBUG) Debug.LogError(e);
@@ -159,7 +167,7 @@ namespace AIKit
         }
 
         public override int GetHashCode() {
-            return this.word.GetHashCode() + ((this.referent is null)?0:this.referent.GetHashCode());
+            return this.word.GetHashCode() + this.referentHash;
         }
 
         public override bool Equals(object obj) {
@@ -186,7 +194,7 @@ namespace AIKit
 
         //Todo deprecate?
         public Sentence(List<LexicalEntry> words) {
-            utterance = GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now();
+            utterance = AIKit_World.Now();
             lexicalEntries = new HashSet<LexicalEntry>();
             syntax = new List<WordClass>();
             lexicalEntryList = new List<LexicalEntry>();
@@ -201,7 +209,7 @@ namespace AIKit
         }
 
         public Sentence(SemSentence sem) {
-            utterance = GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now();
+            utterance = AIKit_World.Now();
             lexicalEntries = new HashSet<LexicalEntry>();
             syntax = new List<WordClass>();
             lexicalEntryList = new List<LexicalEntry>();
@@ -250,7 +258,7 @@ namespace AIKit
         }
 
         public Sentence(List<LexicalEntry> words, SemSentence ss) {
-            utterance = GameObject.FindGameObjectWithTag("AIKW").GetComponent<AIKit_World>().Now();
+            utterance = AIKit_World.Now();
             lexicalEntries = new HashSet<LexicalEntry>();
             syntax = new List<WordClass>();
             lexicalEntryList = new List<LexicalEntry>();
