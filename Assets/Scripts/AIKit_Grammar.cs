@@ -153,7 +153,7 @@ namespace AIKit
                 if (a is null != b is null) return false; //only one null? false
                 else if (a is null) return true; //both null? true
 
-                bool referentMatch = (a.referent is null && b.referent is null)?true:(a.referentString == b.referentString);
+                bool referentMatch = (a.referent is null && b.referent is null)?true:(a.referentHash == b.referentHash);
                 return (a.word == b.word) && referentMatch;
             } catch (System.NullReferenceException e) {
                 if (Prefs.DEBUG) Debug.LogError(e);
@@ -1069,21 +1069,6 @@ namespace AIKit
 
                 }
             }
-
-            //if (Prefs.DEBUG) Debug.Log("known as:" + string.Join("/",entity.knowledgeModule.GetHyponymsOf(entity.knowledgeModule.lexicalMemory.GetOrInsert(entity.GetName()))));
-            /*
-            string str = "the woman kill the monster";
-            Sentence s1 = Interpret(new List<string>(str.ToLower().Split(' ')));
-            
-            str = "the woman kill it";
-            Sentence s2 = Interpret(new List<string>(str.ToLower().Split(' ')));
-            
-            str = "the woman eat it";
-            Sentence s3 = Interpret(new List<string>(str.ToLower().Split(' ')));
-            if (Prefs.DEBUG) Debug.LogError("Match between "+s1.GetSemantics().ToString()+" and "+s2.GetSemantics().ToString()+"?:"+(s1.GetSemantics()==s2.GetSemantics()));
-            
-            SemSentence s4 = ReplaceFlex(s2.GetSemantics(), s1.GetSemantics(), s3.GetSemantics());
-            if (Prefs.DEBUG) Debug.LogError("Filled template: "+s4.ToString());*/
         }
 
         // Update is called once per frame
@@ -1095,174 +1080,5 @@ namespace AIKit
         public string givenSentence, givenWord, givengoal, GivenStatement;
         Sentence sentenceParsed;
         LexicalEntry wordParsed;
-        
-
-        void OnGUI() {
-            if (!showGrammarConsole) return;
-
-            givenSentence = GUI.TextField(new Rect(100, 50, 200, 20), givenSentence);
-            if (GUI.Button(new Rect(100, 90, 100, 60), "Parse Sentence")) 
-            {
-                if (givenSentence.Contains("?")){
-                    givenSentence = givenSentence.Substring(0,givenSentence.Length-1).ToLower();
-                    try {
-                        sentenceParsed = Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
-                    } catch (System.Exception e) {
-                        //if the first wasn't grammatical but has "is", try the flipped version
-                        if (givenSentence.Contains(" is ")) {
-                            string [] splitVersion = givenSentence.Split(new [] { " is " }, 2, System.StringSplitOptions.RemoveEmptyEntries);
-                            string flippedVerison = splitVersion[1] + " is " + splitVersion[0];
-                            if (Prefs.DEBUG) Debug.Log("Failed, now trying to flip: ");
-                            sentenceParsed = Interpret(new List<string>(flippedVerison.ToLower().Split(' ')));
-                        } 
-                        else 
-                        {
-                            throw e;
-                        }
-
-                    }
-
-                    string s = "Parsed Query '"+givenSentence+"?' to: "+sentenceParsed.ToString();
-                    if (Prefs.DEBUG) Debug.Log(s);
-                    chatWindow.Add(s);
-                    
-                    //foreach (Memory m in entity.QueryMemories(sentenceParsed.GetLexicalEntryList())) {
-                    //    s = "Response: "+m.GetSentence().ToString()+" - "+m.GetSentence().ToLiteralString();
-                    //    if (Prefs.DEBUG) Debug.Log(s);
-                    //    chatWindow.Add(s);
-                    //}
-                }else {
-                    sentenceParsed = Interpret(new List<string>(givenSentence.ToLower().Split(' ')));
-                    string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.ToString();
-                    if (Prefs.DEBUG) Debug.Log(s);
-                    chatWindow.Add(s);
-                    
-                    entity.addMemory(sentenceParsed);
-                }
-                
-            }
-            
-            if(sentenceParsed!=null)
-                GUI.Label(new Rect(100,170,200,20), sentenceParsed.ToString());
-            
-            givenWord = GUI.TextField(new Rect(100, 200, 200, 20), givenWord).ToLower();
-            if (GUI.Button(new Rect(100, 240, 100, 60), "Parse Word")) 
-            {
-                if (dictionary.ContainsKey(givenWord)) {
-                    wordParsed = dictionary[givenWord];
-                    string s = "Parsed "+givenWord+" to: "+wordParsed.ToString();
-                    if (Prefs.DEBUG) Debug.Log(s);
-                    chatWindow.Add(s);
-                } else {
-                    string s = "Word "+givenWord+" not recognized.";
-                    if (Prefs.DEBUG) Debug.Log(s);
-                    chatWindow.Add(s);
-                }
-                
-            }
-
-            //if(false && wordParsed!=null)
-            //    GUI.Label(new Rect(100,270,200,20), wordParsed.ToString());
-            
-            if(chatWindow!=null) {
-                for (int i = chatWindow.Count-1; i >=0; i--) {
-                    GUI.Label(new Rect(300,200-((chatWindow.Count - i)*20),400,20), chatWindow[i]);
-                }
-                GUI.Label(new Rect(300,10,400,20), entity.GetName()+"'s Dialogue");
-            }
-                
-            if(entity!=null) {
-                for (int i = 0; i < entity.GetMemories().Count; i++) {
-                    GUI.Label(new Rect(700,50+(i*20),1000,20), entity.GetMemories()[i].GetSentence().ToString() + " - " +entity.GetMemories()[i].GetSentence().ToLiteralString() + " - "+entity.GetMemories()[i].StatsString());
-                }
-                GUI.Label(new Rect(700,10,400,20), entity.GetName()+"'s Memories");
-            }
-
-            if(beAnEntity!=null) {
-                //GameObject[] context = new GameObject[beAnEntity.PerceptualContext.Count];
-                SemSentence[] pFacts = new SemSentence[entity.knowledgeModule.perceptualFacts.Count];
-                entity.knowledgeModule.perceptualFacts.CopyTo(pFacts);
-
-                for (int i = 0; i < pFacts.Length; i++) {
-                    GUI.Label(new Rect(1500,200+(i*20),1000,20), pFacts[i].ToString());
-                    //chatWindow.Add(beAnEntity.EntityName+" has noticed "+context[i].GetComponent<IsA>().ToString()+" entering perceptual range.");
-                }
-                GUI.Label(new Rect(1500,170,700,20), entity.GetName()+"'s Perceptual Facts");
-
-                Goal[] goals = new Goal[entity.goals.Count];
-                entity.goals.CopyTo(goals,0);
-                for (int i = 0; i < goals.Length; i++) {
-                    GUI.Label(new Rect(1500,50+(i*20),1000,20), goals[i].ToString());
-                }
-                GUI.Label(new Rect(1500,10,400,20), entity.GetName()+"'s Goals");
-
-                SemImplication[] rules = new SemImplication[entity.knowledgeModule.ruleSet.Count];
-                entity.knowledgeModule.ruleSet.CopyTo(rules);
-                for (int i = 0; i < rules.Length; i++) {
-                    GUI.Label(new Rect(2000,50+(i*20),1000,20), rules[i].ToString());
-                }
-                GUI.Label(new Rect(2000,10,400,20), entity.GetName()+"'s Ruleset");
-
-                /*
-                SemImplication[] rules = new SemImplication[entity.knowledgeModule.];
-                entity.knowledgeModule.ruleSet.CopyTo(rules);
-                for (int i = 0; i < rules.Length; i++) {
-                    GUI.Label(new Rect(1800,50+(i*20),1000,20), rules[i].ToString());
-                }
-                GUI.Label(new Rect(1800,10,400,20), entity.GetName()+"'s Ruleset");
-                */
-
-                /*givengoal = GUI.TextField(new Rect(100, 500, 200, 20), givengoal).ToLower();
-                if (GUI.Button(new Rect(100, 540, 100, 60), "PlanTo Goal")) 
-                {
-                    if (Prefs.DEBUG) Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
-                    Sentence goalparsed = Interpret(new List<string>(givengoal.ToLower().Split(' ')));
-                    string s = "Parsed '"+givengoal+"' to: "+goalparsed.GetSemantics().ToString();
-                    if (Prefs.DEBUG) Debug.Log(s);
-                    chatWindow.Add(s);
-                    
-                    Stack<SemSentence> plan = entity.knowledgeModule.PlanTo(goalparsed.GetSemantics());
-                    if (plan is null || plan.Count<1) {
-                        if (Prefs.DEBUG) Debug.Log("planning failed!");
-                    } else {
-                        SemSentence[] plan_arr = plan.ToArray();
-                        string str = "";
-                        foreach (SemSentence step in plan_arr) {
-                            str += step.ToString() + ",then..";
-                        }
-                        if (Prefs.DEBUG) Debug.Log("Given plan:"+str);
-                    }
-                    
-                }*/
-
-                givengoal = GUI.TextField(new Rect(100, 500, 200, 20), givengoal).ToLower();
-                if (GUI.Button(new Rect(100, 540, 150, 40), "Add Goal to Entity")) 
-                {
-                    //if (Prefs.DEBUG) Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
-                    Sentence goalparsed = Interpret(new List<string>(givengoal.ToLower().Split(' ')));
-                    string s = "Parsed '"+givengoal+"' to: "+goalparsed.GetSemantics().ToString();
-                    //if (Prefs.DEBUG) Debug.Log(s);
-                    chatWindow.Add(s);
-                    
-                    if (Prefs.DEBUG) Debug.Log("Pushed new goal to "+entity.GetName().ToString()+": "+goalparsed.ToLiteralString()+" // "+goalparsed.GetSemantics().ToString());
-                    entity.myGoals.Push(goalparsed.GetSemantics());
-                    
-                }
-
-                GivenStatement = GUI.TextField(new Rect(100, 600, 200, 20), GivenStatement).ToLower();
-                if (GUI.Button(new Rect(100, 640, 100, 60), "Evaluate TRuth")) 
-                {
-                    if (Prefs.DEBUG) Debug.Log("Initial Knowledge Base: \n" + entity.knowledgeModule.lexicalMemory.AllNodesInfo());
-                    Sentence statementParsed = Interpret(new List<string>(GivenStatement.ToLower().Split(' ')));
-                    string s = "Parsed '"+GivenStatement+"' to: "+statementParsed.GetSemantics().ToString();
-                    if (Prefs.DEBUG) Debug.Log(s);
-                    chatWindow.Add(s);
-                    
-                    if (Prefs.DEBUG) Debug.Log("Truth value: "+entity.knowledgeModule.isTrue(statementParsed, out _));
-                    
-                }
-
-            }
-        }
-    }
+}
 }

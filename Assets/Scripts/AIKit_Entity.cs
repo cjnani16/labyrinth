@@ -23,6 +23,10 @@ namespace AIKit {
     public enum GenerativeWordClass {
         Demonstratives, Determiners, Inquiries, ItrVerbs, TrVerbs, Names, PossessiveDeterminers, PosessiveNounPhrases, Subjects, Nouns, Places, Prepositions, Adjectives, Markers, Deictic, Antecedents, Consequents, Conjunctions
     }
+    public enum Motivation
+    {
+        Hunger, Security, Social, Esteem, Actualization //Mazlow (ew)
+    }
     public class Entity {
         SemNP name;
         List<Memory> memory;
@@ -33,11 +37,119 @@ namespace AIKit {
         Dictionary<LexicalEntry,Connotation> emotionalOverrides;
         Connotation emotionalState;
         public KnowledgeModule knowledgeModule;
-        public Stack<Goal> goals;
         public Stack<SemSentence> myGoals;
-        public Stack<SemSentence> curentPlan;
+        public Stack<SemSentence> currentPlan;
+        public SemSentence currentPlanTarget;
+        public int[] motivationState;
 
         Queue<Sentence> witnessedEvents;
+
+        public Motivation CurrentMotivation()
+        {
+            for (int i = 0; i < motivationState.Length; i++)
+            {
+                if (motivationState[i] < 5) //this takes priority if it reaches 0
+                {
+                    return (Motivation)i;
+                }
+            }
+
+            return Motivation.Actualization;
+        }
+
+        public void ModifyMotivation (Motivation m, int val)
+        {
+            motivationState[(int)m] += val;
+        }
+
+        public void TickMotivations()
+        {
+            motivationState[(int)Motivation.Hunger] -= 10;
+            motivationState[(int)Motivation.Security] -= 5;
+            motivationState[(int)Motivation.Social] -= 3;
+            motivationState[(int)Motivation.Esteem] -= 2;
+            motivationState[(int)Motivation.Actualization] -= 1;
+        }
+
+        public SemSentence GetGoalFromMotivation(Motivation motive)
+        {
+            switch (motive)
+            {
+                case Motivation.Hunger: //hungry? eat something
+                    var goal = new SemSentence()
+                    {
+                        np = new SemNP(this.name),
+                        vp = new SemVP()
+                        {
+                            verb = AIKit_Grammar.EntryFor("eat"),
+                            objects = new List<SemNP>() {
+                                new SemNP() {
+                                    noun = AIKit_Grammar.EntryFor("thing"),
+                                    determiner = AIKit_Grammar.EntryFor("some")
+                                } 
+                            }
+                        }
+                    };
+                    goal.MakeLiteral();
+                    return goal;
+                case Motivation.Security: //insecure? see home lmao
+                    goal = new SemSentence()
+                    {
+                        np = new SemNP(this.name),
+                        vp = new SemVP()
+                        {
+                            verb = AIKit_Grammar.EntryFor("see"),
+                            objects = new List<SemNP>() {
+                                new SemNP() {
+                                    noun = AIKit_Grammar.EntryFor("house"),
+                                    determiner = AIKit_Grammar.EntryFor("a")
+                                }
+                            }
+                        }
+                    };
+                    goal.MakeLiteral();
+                    return goal;
+                case Motivation.Social: //lonely? see someone
+                    goal = new SemSentence()
+                    {
+                        np = new SemNP(this.name),
+                        vp = new SemVP()
+                        {
+                            verb = AIKit_Grammar.EntryFor("see"),
+                            objects = new List<SemNP>() {
+                                new SemNP() {
+                                    noun = AIKit_Grammar.EntryFor("person"),
+                                    determiner = AIKit_Grammar.EntryFor("a")
+                                }
+                            }
+                        }
+                    };
+                    goal.MakeLiteral();
+                    return goal;
+                case Motivation.Esteem: //feeling down? make something, help someone
+                    goal = new SemSentence()
+                    {
+                        np = new SemNP(this.name),
+                        vp = new SemVP()
+                        {
+                            verb = AIKit_Grammar.EntryFor("help"),
+                            objects = new List<SemNP>() {
+                                new SemNP() {
+                                    noun = AIKit_Grammar.EntryFor("person"),
+                                    determiner = AIKit_Grammar.EntryFor("some")
+                                }
+                            }
+                        }
+                    };
+                    goal.MakeLiteral();
+                    return goal;
+                case Motivation.Actualization: //purposeless? idk yet bro pursue some ultimate life goal
+                    return null;
+                default:
+                    Debug.LogError("Invalid Motivation value");
+                    return null;
+            }
+        }
 
         public Entity(string n, GameObject referent) 
         {
@@ -51,11 +163,11 @@ namespace AIKit {
             this.emotionalOverrides = new Dictionary<LexicalEntry, Connotation>();
             this.emotionalState = new Connotation();
             this.witnessedEvents = new Queue<Sentence>();
-            this.goals = new Stack<Goal>();
             this.knowledgeModule = new KnowledgeModule(na);
 
             this.myGoals = new Stack<SemSentence>();
-            this.curentPlan = new Stack<SemSentence>();
+            this.currentPlan = new Stack<SemSentence>();
+            this.motivationState = new int[5] { 20, 100, 100, 100, 100 };
         }
 
         public void GainPerceptOf(List<SemNP> apparentNPs) {
@@ -132,15 +244,6 @@ namespace AIKit {
             this.emotionalState *= con;
         }
 
-        public void CompleteGoal() {
-            Goal g = goals.Pop();
-            Debug.Log(this.name.ToString()+" completed the Goal: "+g.ToString());
-        }
-
-        public void AddGoal(Goal g) {
-            this.goals.Push(g);
-        }
-
         public void degradeMemories() {
             foreach (Memory m in memory) {
                 m.Degrade();
@@ -148,11 +251,6 @@ namespace AIKit {
                     memory.Remove(m);
                 }
             }
-        }
-
-        public Goal CurrentGoal() {
-            if (goals.Count == 0) return null;
-            return goals.Peek();
         }
 
         public List<Memory> GetMemories(){

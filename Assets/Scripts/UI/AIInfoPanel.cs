@@ -9,7 +9,7 @@ using System.Linq;
 public class AIInfoPanel : MonoBehaviour
 {
     public GameObject EntityObject;
-    public TMPro.TextMeshProUGUI NameText, IsAText, GoalText, MemoryText, PerceptualFactsText;
+    public TMPro.TextMeshProUGUI NameText, IsAText, GoalText, PlanText, MemoryText, PerceptualFactsText;
     public TMPro.TMP_InputField NewGoalField, NewSentenceField;
 
     AIKit.IsA EntityIsA;
@@ -44,11 +44,18 @@ public class AIInfoPanel : MonoBehaviour
         if (true)
         {
             //goals
-            Stack<AIKit.Goal> goals = Entity.goals;
-            if (goals.Count > 0)
-                GoalText.text = string.Join("\n", Entity.goals.Select(m => m.ToString()).ToArray());
+            if (Entity.myGoals.Count > 0)
+                GoalText.text = string.Join("\n", Entity.myGoals.Select(m => m.ToString()).ToArray());
             else
                 GoalText.text = "No goals";
+
+            //plan
+            if (!(Entity.currentPlan is null))
+                PlanText.text = string.Join("\n", Entity.currentPlan.Select(m => m.ToString()).ToArray());
+            else
+                PlanText.text = "No plan";
+
+            PlanText.text += "\n\n" + string.Join(",",Entity.motivationState);
 
             //memory
             MemoryText.text = string.Join("\n", Entity.GetMemories().Select(m => m.GetSentence().GetSemantics().ToString()).ToArray());

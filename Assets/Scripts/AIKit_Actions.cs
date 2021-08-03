@@ -68,6 +68,7 @@ namespace AIKit
         public static void StepOnEat(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
             if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms EAT: "+plan.Peek());
             entity.addMemory(new Sentence(plan.Peek()));
+            entity.ModifyMotivation(Motivation.Hunger, 50);
             plan.Pop();
         }
 

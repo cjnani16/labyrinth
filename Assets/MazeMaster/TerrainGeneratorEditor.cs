@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEditor;
 
+[InitializeOnLoad]
 [CustomEditor (typeof (TerrainGenerator))]
 public class TerrainGeneratorEditor : Editor
 {

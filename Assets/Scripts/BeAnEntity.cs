@@ -17,11 +17,6 @@ public class BeAnEntity : MonoBehaviour
 
     bool isPlanning = false;
 
-    void processGoalsStack()
-    {
-        AIKit.Goal currentGoal = self.CurrentGoal();
-    }
-
     /*
     GameObject FindInContext(List<AIKit.LexicalEntry> thing) {
         foreach (GameObject g in this.PerceptualContext) {
@@ -47,8 +42,8 @@ public class BeAnEntity : MonoBehaviour
         self = GetSelf();
         dt = 0;
         this.perceiveOnInit = new List<AIKit.IsA>();
-        //this.PerceptualContext = new ObservableCollection<string>();
-        //this.PerceptualContext.CollectionChanged += this.PerceptualContextChanged;
+        StartCoroutine(TryPlanning());
+        StartCoroutine(TickState());
     }
 
     void OnTriggerEnter(Collider other)
@@ -83,58 +78,9 @@ public class BeAnEntity : MonoBehaviour
         }
     }
 
-    /*
-    void PerceptualContextChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-    {
-            //list changed - an item was added.
-            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
-            {
-                //Do what ever you want to do when an item is added here...
-                //the new items are available in e.NewItems
-                if (Prefs.DEBUG) Debug.Log(EntityName+" notices "+obj.ToString());
-                this.gameObject.transform.LookAt(c.gameObject.transform);
-                this.self.GainPerceptOf(obj.ApparentNPs());
-            }
-
-            //list changed - an item was removed.
-            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove)
-            {
-                //Do what ever you want to do when an item is added here...
-                //the new items are available in e.NewItems
-            }
-    }*/
-
     // Update is called once per frame
     void Update()
     {
-        /*
-        HashSet<GameObject> newArrivals = new HashSet<GameObject>();
-        Collider[] context = Physics.OverlapSphere(this.transform.TransformVector(Vector3.zero), PerceptualRadius);
-        foreach (Collider c in context) {
-            if (c.gameObject==gameObject) continue; //ignore self lol
-
-            AIKit.IsA obj = c.gameObject.GetComponent<AIKit.IsA>();
-
-            if (obj!=null){
-                //if this wasn't *already* in our perceptual context, we announce its arrival
-                if (!PerceptualContext.Contains(c.gameObject)) {
-                    
-                }
-
-                newArrivals.Add(c.gameObject);
-            }
-        }
-        foreach (GameObject gameObject in PerceptualContext) {
-            AIKit.IsA obj = gameObject.GetComponent<AIKit.IsA>();
-            if (!newArrivals.Contains(gameObject)) {
-                if (Prefs.DEBUG) Debug.Log(EntityName+" no longer sees"+obj.ToString());
-                this.self.LosePerceptOf(obj.ApparentNPs());
-            }
-        }
-        PerceptualContext = newArrivals;
-        */
-
-
         for (int i = 0; i < perceiveOnInit.Count; i++)
         {
             if (perceiveOnInit[i].initialized)
@@ -144,66 +90,91 @@ public class BeAnEntity : MonoBehaviour
                 perceiveOnInit.RemoveAt(i--);
             }
         }
+        this.self.processWitnessQueue();
 
-
-        dt += Time.deltaTime;
-        if ((int)dt % 1 == 0 && this.perceiving)  //replan every 1 second
+        if (!(self.currentPlan is null || self.currentPlan.Count < 1))
         {
-            this.self.processWitnessQueue();
+            //if this is false, the plan was invalidated!
+            if (!AIKit.AIKit_Actions.StepOnGoal(self.myGoals.Peek(), ref self.currentPlan, this.self, this.gameObject))
+            {
+                if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was invalidated! Rip");
+                //normally wouldn't do this, but lets prevent replanning we popped^
+                self.currentPlan = null;
+                self.currentPlanTarget = null;
+            }
+        }
+    }
+
+    IEnumerator TryPlanning()
+    {
+        while (true)
+        {
             if (self.myGoals.Count > 0)
             {
-                Debug.Log("Goals for " + this.name + ": " + string.Join(",", self.myGoals));
+                //Debug.Log("Goals for " + this.name + ": " + string.Join(",", self.myGoals));
 
                 if (this.self.knowledgeModule.isTrue(self.myGoals.Peek(), out _, false))
                 {
                     if (Prefs.DEBUG) Debug.Log(EntityName + " completed goal of " + self.myGoals.Peek().ToString() + "!");
                     self.myGoals.Pop();
-                    self.curentPlan = null;
-                    return;
+                    self.currentPlan = null;
+                    self.currentPlanTarget = null;
+                    yield return new WaitForSeconds(1);
                 }
                 if (isPlanning)
                 {
-                    Debug.LogFormat("Still coming up with a plan for goal {0}", self.myGoals.Peek().ToString());
-                }
-                if (self.curentPlan is null || self.curentPlan.Count < 1 || self.curentPlan.ToArray()[self.curentPlan.Count - 1] != self.myGoals.Peek())
-                {
-                    if (Prefs.DEBUG) Debug.Log("Planning how to " + self.myGoals.Peek().ToString());
-                    //self.curentPlan = self.knowledgeModule.PlanTo(self.myGoals.Peek());
-                    SetPlanAsync();
-                }
-                if (self.curentPlan.Count < 1)
-                {
-                    if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was empty! Rip");
+                    //Debug.LogFormat("Still coming up with a plan for goal {0}", self.myGoals.Peek().ToString());
                 }
                 else
                 {
-                    //if this is false, the plan was invalidated!
-                    if (!AIKit.AIKit_Actions.StepOnGoal(self.myGoals.Peek(), ref self.curentPlan, this.self, this.gameObject))
+                    if (self.currentPlan is null || self.currentPlan.Count < 1 || self.currentPlanTarget != self.myGoals.Peek())
                     {
-                        if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was invalidated! Rip");
-                        //normally wouldn't do this, but lets prevent replanning we popped^
-                        self.curentPlan = null;
+                        if (Prefs.DEBUG) Debug.Log("Planning how to " + self.myGoals.Peek().ToString());
+                        Debug.LogFormat("Kickoff planning for goal: {0}", self.myGoals.Peek().ToString());
+                        isPlanning = true;
+                        var planTask = Task<Stack<AIKit.SemSentence>>.Run(() => self.knowledgeModule.PlanTo(self.myGoals.Peek()));
+                        yield return new WaitUntil(() => planTask.IsCompleted);
+                        Debug.LogFormat("Finished planning for goal: {0}", self.myGoals.Peek().ToString());
+                        self.currentPlan = planTask.Result;
+                        isPlanning = false;
+                        self.currentPlanTarget = self.myGoals.Peek(); //store what this plan was targeting so we don't plan again if necessary
+                    }
+                    if (self.currentPlan.Count < 1)
+                    {
+                        if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was empty! Rip");
                     }
                 }
-
             }
 
-            /*this.decideNextGoal();
-            this.ActOnGoals();*/
+            else
+            {
+                //give yourself a goal using motivations
+                AIKit.SemSentence goal = self.GetGoalFromMotivation(self.CurrentMotivation());
+                if (!(goal is null))
+                {
+                    self.myGoals.Push(goal);
+                }
+            }
+            yield return new WaitForSeconds(1);
         }
+    }
 
-        if ((int)dt % 10 == 0)
+    IEnumerator TickState()
+    {
+        while (true)
         {
             this.self.chillOut();
+            self.TickMotivations();
+            yield return new WaitForSeconds(5);
         }
-
-        if (dt > 100) dt = 0;
     }
 
     public async void SetPlanAsync()
     {
+        Debug.LogFormat("Kickoff planning for goal: {0}", self.myGoals.Peek().ToString());
         isPlanning = true;
-        self.curentPlan = await Task.Run(() => self.knowledgeModule.PlanTo(self.myGoals.Peek()));
+        self.currentPlan = await Task.Run(() => self.knowledgeModule.PlanTo(self.myGoals.Peek()));
         isPlanning = false;
+        self.currentPlanTarget = self.myGoals.Peek(); //store what this plan was targeting so we don't plan again if necessary
     }
 }

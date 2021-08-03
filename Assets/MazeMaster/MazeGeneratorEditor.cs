@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEditor;
 
+[InitializeOnLoad]
 [CustomEditor (typeof (MazeGenerator))]
 public class MazeGeneratorEditor : Editor
 {
