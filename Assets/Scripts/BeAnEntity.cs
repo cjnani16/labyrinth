@@ -2,19 +2,18 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using System.Linq;
 
 [System.Serializable]
 public class BeAnEntity : MonoBehaviour
 {
     AIKit.Entity self;
     public string EntityName;
-    public bool perceiving = false;
+    public bool Perceiving = false;
+    public bool Planning = false;
+    public bool Motivated = false;
 
     List<AIKit.IsA> perceiveOnInit;
-
-    //public HashSet<GameObject> PerceptualContext;
-    float dt;
-
     bool isPlanning = false;
 
     /*
@@ -30,6 +29,11 @@ public class BeAnEntity : MonoBehaviour
         return null;
     }*/
 
+    public BeAnEntity()
+    {
+        this.perceiveOnInit = new List<AIKit.IsA>();
+    }
+
     public AIKit.Entity GetSelf()
     {
         if (self is null) this.self = new AIKit.Entity(EntityName.ToLower(), gameObject);
@@ -40,22 +44,20 @@ public class BeAnEntity : MonoBehaviour
     void Start()
     {
         self = GetSelf();
-        dt = 0;
-        this.perceiveOnInit = new List<AIKit.IsA>();
-        StartCoroutine(TryPlanning());
-        StartCoroutine(TickState());
+        if (Planning) StartCoroutine(TryPlanning());
+        if (Motivated) StartCoroutine(TickState());
     }
 
     void OnTriggerEnter(Collider other)
     {
-        if (!perceiving) return;
+        if (!Perceiving) return;
 
         AIKit.IsA obj = other.gameObject.GetComponent<AIKit.IsA>();
 
         if (obj != null)
         {
             //sometimes we see thigns before the dictionary is ready.
-            if (!obj.initialized)
+            if (!AIKit.AIKit_Grammar.IsDictionaryReady())
             {
                 this.perceiveOnInit.Add(obj);
                 return;
@@ -69,6 +71,8 @@ public class BeAnEntity : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
+        if (!Perceiving) return;
+
         AIKit.IsA obj = other.gameObject.GetComponent<AIKit.IsA>();
 
         if (obj != null)
@@ -78,18 +82,19 @@ public class BeAnEntity : MonoBehaviour
         }
     }
 
-    // Update is called once per frame
-    void Update()
+    public void RunInitialPerception()
     {
         for (int i = 0; i < perceiveOnInit.Count; i++)
         {
-            if (perceiveOnInit[i].initialized)
-            {
-                if (Prefs.DEBUG) Debug.Log(EntityName + " awakens and notices " + perceiveOnInit[i].ToString());
-                this.GetSelf().GainPerceptOf(perceiveOnInit[i].ApparentNPs());
-                perceiveOnInit.RemoveAt(i--);
-            }
+            if (Prefs.DEBUG) Debug.Log(EntityName + " awakens and notices " + perceiveOnInit[i].ToString());
+            this.GetSelf().GainPerceptOf(perceiveOnInit[i].ApparentNPs());
+            perceiveOnInit.RemoveAt(i--);
         }
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
         this.self.processWitnessQueue();
 
         if (!(self.currentPlan is null || self.currentPlan.Count < 1))
@@ -134,8 +139,9 @@ public class BeAnEntity : MonoBehaviour
                         isPlanning = true;
                         var planTask = Task<Stack<AIKit.SemSentence>>.Run(() => self.knowledgeModule.PlanTo(self.myGoals.Peek()));
                         yield return new WaitUntil(() => planTask.IsCompleted);
-                        Debug.LogFormat("Finished planning for goal: {0}", self.myGoals.Peek().ToString());
                         self.currentPlan = planTask.Result;
+
+                        Debug.LogFormat("Finished planning for goal: {0} : {1} steps - {2}", self.myGoals.Peek().ToString(), self.currentPlan.Count, string.Join(", ", self.currentPlan.Select(m => m.ToString()).ToArray()));
                         isPlanning = false;
                         self.currentPlanTarget = self.myGoals.Peek(); //store what this plan was targeting so we don't plan again if necessary
                     }
@@ -148,11 +154,14 @@ public class BeAnEntity : MonoBehaviour
 
             else
             {
-                //give yourself a goal using motivations
-                AIKit.SemSentence goal = self.GetGoalFromMotivation(self.CurrentMotivation());
-                if (!(goal is null))
+                if (Motivated)
                 {
-                    self.myGoals.Push(goal);
+                    //give yourself a goal using motivations
+                    AIKit.SemSentence goal = self.GetGoalFromMotivation(self.CurrentMotivation());
+                    if (!(goal is null))
+                    {
+                        self.myGoals.Push(goal);
+                    }
                 }
             }
             yield return new WaitForSeconds(1);

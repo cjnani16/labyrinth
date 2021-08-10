@@ -838,10 +838,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3704dcd2a81604dd9aa9b5329cbcb7ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Name: 
   InitialIdentity:
   - monster
   IsPlayer: 0
-  initialized: 0
 --- !u!1 &211080772
 GameObject:
   m_ObjectHideFlags: 0
@@ -1282,7 +1282,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!135 &352548637
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1308,11 +1308,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3704dcd2a81604dd9aa9b5329cbcb7ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Name: 
   InitialIdentity:
-  - person
   - woman
   IsPlayer: 0
-  initialized: 0
 --- !u!114 &352548639
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1326,7 +1325,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   EntityName: Alphonse
-  perceiving: 1
+  Perceiving: 1
+  Planning: 1
+  Motivated: 1
 --- !u!54 &352548640
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -1414,7 +1415,7 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 352548636}
   m_LocalRotation: {x: -0, y: 0.5845952, z: -0, w: 0.8113252}
-  m_LocalPosition: {x: 0, y: 0, z: 3.2759283}
+  m_LocalPosition: {x: 0, y: 0, z: 10.25}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 260686188}
@@ -1423,7 +1424,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 71.549, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.7665928, y: 0}
+  m_AnchoredPosition: {x: -8.66, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &361408558
@@ -2669,10 +2670,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3704dcd2a81604dd9aa9b5329cbcb7ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Name: 
   InitialIdentity:
   - monster
   IsPlayer: 0
-  initialized: 0
 --- !u!54 &526438866
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -3108,7 +3109,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   showGrammarConsole: 0
-  EntityToTalkTo: {fileID: 1613215435}
+  EntitiesToTalkTo:
+  - {fileID: 1613215435}
+  - {fileID: 352548636}
   startingSentences:
   - any woman is a person
   - if she take it then any person caneat any thing
@@ -3611,7 +3614,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4b8d3c6ec5764fd1855a5a29da1a3ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  EntityObject: {fileID: 1613215435}
+  EntityObject: {fileID: 352548636}
   NameText: {fileID: 6634447}
   IsAText: {fileID: 1228202321}
   GoalText: {fileID: 1439070301}
@@ -7474,11 +7477,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3704dcd2a81604dd9aa9b5329cbcb7ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Name: 
   InitialIdentity:
-  - person
   - woman
   IsPlayer: 0
-  initialized: 0
 --- !u!114 &1613215442
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7492,7 +7494,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   EntityName: Alena
-  perceiving: 1
+  Perceiving: 1
+  Planning: 1
+  Motivated: 1
 --- !u!135 &1613215443
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -7844,10 +7848,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3704dcd2a81604dd9aa9b5329cbcb7ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Name: 
   InitialIdentity:
   - monster
   IsPlayer: 0
-  initialized: 0
 --- !u!54 &1708561047
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -8851,7 +8855,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b297ed75210c8e4aa439d7eb6fe0e21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  EntityObject: {fileID: 1613215435}
+  EntityObject: {fileID: 352548636}
   ConsoleText: {fileID: 1533034029}
   NewSentenceField: {fileID: 499714952}
 --- !u!1 &1981832835

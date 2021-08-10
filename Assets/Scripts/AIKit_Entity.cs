@@ -91,6 +91,11 @@ namespace AIKit {
                         }
                     };
                     goal.MakeLiteral();
+                    //negate the goal just so we forget about the last time we did it and don't say it's already done
+                    var nogoal = SemSentence.NewCopy(goal);
+                    nogoal.vp.verb = AIKit_Grammar.EntryFor("noeat");
+                    this.addMemory(new Sentence(nogoal));
+
                     return goal;
                 case Motivation.Security: //insecure? see home lmao
                     goal = new SemSentence()
@@ -221,6 +226,7 @@ namespace AIKit {
         //Calculate salience and emotional content of memory, then pack it up
         public void addMemory(Sentence s) 
         {
+            if (s is null) Debug.LogError(s);
             Debug.Log("Interpreting "+s.GetSemantics().ToString()+"...");
             float sal = 0;
             Connotation con = new Connotation();

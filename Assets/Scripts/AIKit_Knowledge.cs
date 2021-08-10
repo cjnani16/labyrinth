@@ -68,7 +68,7 @@ namespace AIKit
         }
 
         void interpretSentence(Sentence s, SemSentence sem, float salience, out List<SemanticWebEdge> newEdges) {
-            if (Prefs.DEBUG) Debug.Log("Interpreting Sentence "+s.ToString()+"...");
+            if (Prefs.DEBUG) Debug.Log("Interpreting Sentence "+s.ToString()+"...aka "+s.GetSemantics().ToString()+"...");
             newEdges = new List<SemanticWebEdge>();
             //if (Prefs.DEBUG) Debug.Log("Is this a rule? "+s.GetSemantics().ToString()+" : "+ (!(s.GetSemantics() as SemImplication is null)));
 

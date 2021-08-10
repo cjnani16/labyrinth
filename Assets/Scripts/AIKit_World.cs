@@ -78,9 +78,9 @@ namespace AIKit {
             int n=0;
             Collider[] context = Physics.OverlapSphere(position, radius);
             foreach (Collider c in context) {
-                Entity witness = c.GetComponentInParent<Entity>();
+                BeAnEntity witness = c.GetComponentInParent<BeAnEntity>();
                 if (witness!=null) {
-                    witness.Witness(s);
+                    witness.GetSelf().Witness(s);
                     n++;
                 }
             }

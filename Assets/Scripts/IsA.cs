@@ -7,9 +7,9 @@ namespace AIKit
     [System.Serializable]
     public class IsA : MonoBehaviour
     {
+        public string Name;
         public List<string> InitialIdentity;
         public bool IsPlayer;
-        public bool initialized = false;
         List<List<LexicalEntry>> Iam;
 
         public IsA() {
@@ -37,8 +37,8 @@ namespace AIKit
         }
 
         public void BecomeA(string thing) {
-            LexicalEntry le = AIKit_Grammar.EntryFor(thing);
-            if (le.wordClass != WordClass.N) le.AffixReferent(gameObject);
+            LexicalEntry le = new LexicalEntry(AIKit_Grammar.EntryFor(thing));
+            //if (le.wordClass != WordClass.N) le.AffixReferent(gameObject);
             Iam.Add(AIKit_Grammar.ExpandToList(le));
         }
 
@@ -52,13 +52,15 @@ namespace AIKit
             List<LexicalEntry> nouns = this.Iam.ConvertAll((list) => list[0]);
             foreach(LexicalEntry noun in nouns) {
                 SemNP np = new SemNP();
-                noun.AffixReferent(this.gameObject);
+                //noun.AffixReferent(this.gameObject);
                 np.noun = noun;
                 if (noun.wordClass == WordClass.N)
+                {
                     np.determiner = AIKit_Grammar.EntryFor("a");
+                    SemNP np2 = new SemNP(np) { determiner = AIKit_Grammar.EntryFor("some") };
+                    NPs.Add(np2);
+                }
                 NPs.Add(np);
-                SemNP np2 = new SemNP(np) { determiner = AIKit_Grammar.EntryFor("some") };
-                NPs.Add(np2);
             }
             return NPs;
         }
@@ -72,37 +74,6 @@ namespace AIKit
                 }
             }
             return s;
-        }
-
-        // Start is called before the first frame update
-        void Start()
-        {
-            
-        }
-
-        // Update is called once per frame
-        void Update()
-        {
-            //initialize after dictionary becomes ready
-            if (this.initialized == false && AIKit_Grammar.dictionary!=null) {
-                //everything is something
-                //BecomeA("something"); //this is in KMs so it shouldn't be necessary rlly
-
-                foreach (string s in InitialIdentity) {
-                    BecomeA(s);
-                }
-
-                //everyone is someone
-                if (gameObject.GetComponent<BeAnEntity>() != null) {
-                    Entity e = gameObject.GetComponent<BeAnEntity>().GetSelf();
-                    BecomeA(e.GetName());
-                    BecomeA("whomever");
-                    BecomeA("someone");
-                    //TODO: Entities should fully identify themselves with IsA edges??
-
-                }
-                this.initialized = true;
-            }
         }
     }
 }

@@ -95,6 +95,7 @@ namespace AIKit
             //take once within x distance
             if (Vector3.Distance(entityGameObject.transform.position, target.position) < 2)
             {
+                target.position = new Vector3(100000000.0f, 10000000.0f, 10000000.0f); //so it "disappears" from any entity perceiving it
                 GameObject.Destroy(target.gameObject);
                 entity.addMemory(new Sentence(plan.Peek()));
                 plan.Pop();

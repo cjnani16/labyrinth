@@ -120,6 +120,7 @@ namespace AIKit
         GameObject referent;
         string referentString;
         int referentHash;
+        public string GetWord() { return word; }
 
         public LexicalEntry(LexicalEntry le) {
             this.word = le.word; this.wordClass = le.wordClass; this.connotation = le.connotation; this.generativeWordClass = le.generativeWordClass;
@@ -348,7 +349,7 @@ namespace AIKit
         [SerializeField]
         public bool showGrammarConsole;
         [SerializeField]
-        public GameObject EntityToTalkTo;
+        public List<GameObject> EntitiesToTalkTo;
         [SerializeField]
         public string[] startingSentences;
         Entity entity;
@@ -358,6 +359,8 @@ namespace AIKit
 
         //grammar parsing
         public static Dictionary<GrammarTokenList, (WordClass, SemanticUpdatingFunc)> rules;
+
+        public static bool IsDictionaryReady() { return dictReady; } 
 
         public static void ParseGrammarRules()
         {
@@ -606,15 +609,7 @@ namespace AIKit
         {
             Dictionary<string, LexicalEntry> result = new Dictionary<string,LexicalEntry>();
             System.IO.StreamReader file;
-            string L ="";
-
-            //Get everyone's name
-            GameObject[] objs = GameObject.FindGameObjectsWithTag("AIKE");
-            foreach(GameObject o in objs) {
-                LexicalEntry name = new LexicalEntry(o.GetComponent<BeAnEntity>().EntityName.ToLower(),WordClass.Name,GenerativeWordClass.Names,Connotation.Neutral);
-                name.AffixReferent(o);
-                result.Add(o.GetComponent<BeAnEntity>().EntityName.ToLower(), name);
-            }
+            string L = "";
 
             //Read each file for specific syntactic category
             file = new System.IO.StreamReader("Assets/Scripts/WordLists/demonstratives.txt");
@@ -820,8 +815,51 @@ namespace AIKit
             LexicalEntry le_then = new LexicalEntry("then", WordClass.M_then, GenerativeWordClass.Markers, Connotation.Neutral);
             result.Add("then",le_then);
 
+            //initialize IsA scripts after dictionary becomes ready
+
+            //Get everything's name
             dictionary = result;
             dictReady = true;
+
+            IsA[] objs = GameObject.FindObjectsOfType<IsA>();
+            foreach (IsA obj in objs)
+            {
+                //entities get named based on BeAnEntity script, override IsA script's name
+                if (obj.gameObject.GetComponent<BeAnEntity>() != null)
+                {
+                    obj.Name = obj.GetComponent<BeAnEntity>().GetSelf().GetName().noun.GetWord();
+                    Debug.LogFormat("Becoming an entity named: {0}", obj.Name);
+                    //BecomeA("whomever");
+                    //BecomeA("someone");
+                    //TODO: Entities should fully identify themselves with IsA edges??
+
+                }
+
+                //random object gets a generic name
+                else if (obj.Name is null || obj.Name == "")
+                {
+                    obj.Name = obj.InitialIdentity[0] + "#" + obj.gameObject.GetHashCode();
+                }
+
+
+                //Add name to dictionary
+                LexicalEntry nameLE = new LexicalEntry(obj.Name, WordClass.Name, GenerativeWordClass.Names, Connotation.Neutral);
+                nameLE.AffixReferent(obj.gameObject);
+                Debug.LogFormat("Added obj named {0} to the dictionary", obj.Name);
+                result.Add(obj.Name, nameLE);
+
+                //Identify with name
+                obj.BecomeA(obj.Name);
+                obj.gameObject.name = obj.gameObject.name + " ( named '" +obj.Name+ "')";
+
+                foreach (string s in obj.InitialIdentity)
+                {
+                    obj.BecomeA(s);
+                }
+            }
+
+            //run initla perception fo entities (they needed the dictionary for this)
+            GameObject.FindObjectsOfType<BeAnEntity>().ToList().ForEach(e => { if (e.Perceiving) e.RunInitialPerception(); });
         }
 
         public static List<LexicalEntry> ExpandToList( LexicalEntry le) {
@@ -850,6 +888,7 @@ namespace AIKit
                 }
                 else
                 {
+                    Debug.LogFormat("{0} => {1}", words[i], dictionary[words[i]]);
                     lexicalEntries.Add(dictionary[words[i]]);
                 }
             }
@@ -1051,22 +1090,23 @@ namespace AIKit
 
             ParseGrammarRules();
             if (Prefs.DEBUG) Debug.Log("Loaded " + rules.Count + " grammar rules.");
-
-            entity = EntityToTalkTo.GetComponent<BeAnEntity>().GetSelf();
-            if (Prefs.DEBUG) Debug.Log("Loaded entity: " + entity.GetName());
-            beAnEntity = EntityToTalkTo.GetComponent<BeAnEntity>();
             
             chatWindow = new List<string>();
 
             foreach (string s in startingSentences) {
-                try{
-                Sentence sentenceParsed = Interpret(new List<string>(s.ToLower().Split(' ')));
-                string deb = "Parsed '"+s+"' to: "+sentenceParsed.ToString();
-                if (Prefs.DEBUG) Debug.Log(deb);
-                chatWindow.Add(deb);
-                entity.addMemory(sentenceParsed);
-                } catch {
-
+                foreach (GameObject entityGameObject in EntitiesToTalkTo)
+                {
+                    var entity = entityGameObject.GetComponent<BeAnEntity>().GetSelf();
+                    if (entity is null) continue;
+                    try
+                    {
+                        Sentence sentenceParsed = Interpret(new List<string>(s.ToLower().Split(' ')));
+                        entity.addMemory(sentenceParsed);
+                    }
+                    catch
+                    {
+                        Debug.LogErrorFormat("Failed to parse the sentence {0}!", s);
+                    }
                 }
             }
         }
