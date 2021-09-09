@@ -65,7 +65,7 @@ public class BeAnEntity : MonoBehaviour
 
             if (Prefs.DEBUG) Debug.Log(EntityName + " notices " + obj.ToString());
             transform.LookAt(other.transform);
-            this.GetSelf().GainPerceptOf(obj.ApparentNPs());
+            this.GetSelf().GainPerceptOf(new AIKit.SemNP { noun = AIKit.AIKit_Grammar.EntryFor(obj.Name) }, obj.ApparentNPs()); ;
         }
     }
 
@@ -87,7 +87,7 @@ public class BeAnEntity : MonoBehaviour
         for (int i = 0; i < perceiveOnInit.Count; i++)
         {
             if (Prefs.DEBUG) Debug.Log(EntityName + " awakens and notices " + perceiveOnInit[i].ToString());
-            this.GetSelf().GainPerceptOf(perceiveOnInit[i].ApparentNPs());
+            this.GetSelf().GainPerceptOf(new AIKit.SemNP { noun = AIKit.AIKit_Grammar.EntryFor(perceiveOnInit[i].Name) }, perceiveOnInit[i].ApparentNPs());
             perceiveOnInit.RemoveAt(i--);
         }
     }
@@ -102,7 +102,8 @@ public class BeAnEntity : MonoBehaviour
             //if this is false, the plan was invalidated!
             if (!AIKit.AIKit_Actions.StepOnGoal(self.myGoals.Peek(), ref self.currentPlan, this.self, this.gameObject))
             {
-                if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was invalidated! Rip");
+                if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Peek() + " was invalidated! Rip");
+                self.myGoals.Pop();
                 //normally wouldn't do this, but lets prevent replanning we popped^
                 self.currentPlan = null;
                 self.currentPlanTarget = null;
@@ -118,7 +119,7 @@ public class BeAnEntity : MonoBehaviour
             {
                 //Debug.Log("Goals for " + this.name + ": " + string.Join(",", self.myGoals));
 
-                if (this.self.knowledgeModule.isTrue(self.myGoals.Peek(), out _, false))
+                if (this.self.knowledgeModule.isTrue(self.myGoals.Peek(), out _, null))
                 {
                     if (Prefs.DEBUG) Debug.Log(EntityName + " completed goal of " + self.myGoals.Peek().ToString() + "!");
                     self.myGoals.Pop();
@@ -147,7 +148,8 @@ public class BeAnEntity : MonoBehaviour
                     }
                     if (self.currentPlan.Count < 1)
                     {
-                        if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Pop() + " was empty! Rip");
+                        if (Prefs.DEBUG) Debug.LogError("Plan to " + self.myGoals.Peek() + " was empty! Rip");
+                        self.myGoals.Pop();
                     }
                 }
             }
@@ -174,7 +176,7 @@ public class BeAnEntity : MonoBehaviour
         {
             this.self.chillOut();
             self.TickMotivations();
-            yield return new WaitForSeconds(5);
+            yield return new WaitForSeconds(2);
         }
     }
 

@@ -10,8 +10,9 @@ namespace AIKit
         //Check if the given entity has the ability to do x (the entity's name should be the subject of the sentence in ALL of these, but i dont check for that rn)
         public static bool AbilityCheck(SemSentence action, KnowledgeModule module) {
             SemSentence abilityCheck = SemSentence.NewCopy(action);
-            abilityCheck.vp.verb = AIKit_Grammar.dictionary["can"+action.vp.verb.ToString()];
-            if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck, out _, false)) {
+            abilityCheck.vp.verb = AIKit_Grammar.EntryFor("can"+action.vp.verb.ToString());
+            abilityCheck.vp.pps = new List<SemPP>();
+            if (action.vp.verb.ToString().StartsWith("can") || !module.isTrue(abilityCheck, out _, null)) {
                 if (Prefs.DEBUGACTIONS) Debug.LogError("Ability check is false:" + abilityCheck.ToString());
                 return false;
             }
@@ -34,7 +35,7 @@ namespace AIKit
             
 
             //check if this is already true (may be wonky that i need to do this)
-            if (entity.knowledgeModule.isTrue(plan.Peek(), out _, false)) {
+            if (entity.knowledgeModule.isTrue(plan.Peek(), out _, null)) {
                 plan.Pop();
                 return true;
             }
@@ -67,19 +68,24 @@ namespace AIKit
 
         public static void StepOnEat(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
             if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms EAT: "+plan.Peek());
-            entity.addMemory(new Sentence(plan.Peek()));
+            SemSentence planWithTimeStamp = SemSentence.NewCopy(plan.Peek());
+            planWithTimeStamp.vp.pps.Add(new SemPP() { preposition = AIKit.AIKit_Grammar.EntryFor("on"), np = new SemNP() { noun = AIKit.AIKit_World.Now().ToLexicalEntry() } });
+            entity.addMemory(new Sentence(planWithTimeStamp));
             entity.ModifyMotivation(Motivation.Hunger, 50);
+
             plan.Pop();
         }
 
         public static void StepOnFind(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
             if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms FIND: "+plan.Peek());
-            entity.addMemory(new Sentence(plan.Peek()));
+            SemSentence planWithTimeStamp = SemSentence.NewCopy(plan.Peek());
+            planWithTimeStamp.vp.pps.Add(new SemPP() { preposition = AIKit.AIKit_Grammar.EntryFor("on"), np = new SemNP() { noun = AIKit.AIKit_World.Now().ToLexicalEntry() } });
+            entity.addMemory(new Sentence(planWithTimeStamp));
             plan.Pop();
         }
 
         public static void StepOnTake(ref Stack<SemSentence> plan, Entity entity, GameObject entityGameObject) {
-            if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms TAKE: "+plan.Peek());
+            //if (Prefs.DEBUGACTIONS) Debug.Log("Entity perorms TAKE: "+plan.Peek());
             SemSentence perform = SemSentence.NewCopy(plan.Peek());
 
             // Move our position a step closer to the target.
@@ -95,9 +101,11 @@ namespace AIKit
             //take once within x distance
             if (Vector3.Distance(entityGameObject.transform.position, target.position) < 2)
             {
-                target.position = new Vector3(100000000.0f, 10000000.0f, 10000000.0f); //so it "disappears" from any entity perceiving it
-                GameObject.Destroy(target.gameObject);
-                entity.addMemory(new Sentence(plan.Peek()));
+                target.gameObject.GetComponent<IsA>().DestroyObject(); //custon destroy that moves it so it "disappears" from any entity perceiving it
+                SemSentence planWithTimeStamp = SemSentence.NewCopy(plan.Peek());
+                planWithTimeStamp.vp.pps.Add(new SemPP() { preposition = AIKit.AIKit_Grammar.EntryFor("on"), np = new SemNP() { noun = AIKit.AIKit_World.Now().ToLexicalEntry() } });
+                entity.addMemory(new Sentence(planWithTimeStamp));
+
                 plan.Pop();
             }
 

@@ -21,7 +21,7 @@ namespace AIKit {
 
     }
     public enum GenerativeWordClass {
-        Demonstratives, Determiners, Inquiries, ItrVerbs, TrVerbs, Names, PossessiveDeterminers, PosessiveNounPhrases, Subjects, Nouns, Places, Prepositions, Adjectives, Markers, Deictic, Antecedents, Consequents, Conjunctions
+        Demonstratives, Determiners, Inquiries, ItrVerbs, TrVerbs, Names, PossessiveDeterminers, PosessiveNounPhrases, Subjects, Nouns, Places, Prepositions, Adjectives, Markers, Deictic, Antecedents, Consequents, Conjunctions, Dates
     }
     public enum Motivation
     {
@@ -82,6 +82,17 @@ namespace AIKit {
                         vp = new SemVP()
                         {
                             verb = AIKit_Grammar.EntryFor("eat"),
+                            pps = new List<SemPP>()
+                            {
+                                new SemPP()
+                                {
+                                    preposition = AIKit_Grammar.EntryFor("since"),
+                                    np = new SemNP()
+                                    {
+                                        noun = AIKit_World.Now().ToLexicalEntry()
+                                    }
+                                }
+                            },
                             objects = new List<SemNP>() {
                                 new SemNP() {
                                     noun = AIKit_Grammar.EntryFor("thing"),
@@ -91,11 +102,6 @@ namespace AIKit {
                         }
                     };
                     goal.MakeLiteral();
-                    //negate the goal just so we forget about the last time we did it and don't say it's already done
-                    var nogoal = SemSentence.NewCopy(goal);
-                    nogoal.vp.verb = AIKit_Grammar.EntryFor("noeat");
-                    this.addMemory(new Sentence(nogoal));
-
                     return goal;
                 case Motivation.Security: //insecure? see home lmao
                     goal = new SemSentence()
@@ -104,6 +110,17 @@ namespace AIKit {
                         vp = new SemVP()
                         {
                             verb = AIKit_Grammar.EntryFor("see"),
+                            pps = new List<SemPP>()
+                            {
+                                new SemPP()
+                                {
+                                    preposition = AIKit_Grammar.EntryFor("since"),
+                                    np = new SemNP()
+                                    {
+                                        noun = AIKit_World.Now().ToLexicalEntry()
+                                    }
+                                }
+                            },
                             objects = new List<SemNP>() {
                                 new SemNP() {
                                     noun = AIKit_Grammar.EntryFor("house"),
@@ -121,6 +138,17 @@ namespace AIKit {
                         vp = new SemVP()
                         {
                             verb = AIKit_Grammar.EntryFor("see"),
+                            pps = new List<SemPP>()
+                            {
+                                new SemPP()
+                                {
+                                    preposition = AIKit_Grammar.EntryFor("since"),
+                                    np = new SemNP()
+                                    {
+                                        noun = AIKit_World.Now().ToLexicalEntry()
+                                    }
+                                }
+                            },
                             objects = new List<SemNP>() {
                                 new SemNP() {
                                     noun = AIKit_Grammar.EntryFor("person"),
@@ -138,6 +166,17 @@ namespace AIKit {
                         vp = new SemVP()
                         {
                             verb = AIKit_Grammar.EntryFor("help"),
+                            pps = new List<SemPP>()
+                            {
+                                new SemPP()
+                                {
+                                    preposition = AIKit_Grammar.EntryFor("since"),
+                                    np = new SemNP()
+                                    {
+                                        noun = AIKit_World.Now().ToLexicalEntry()
+                                    }
+                                }
+                            },
                             objects = new List<SemNP>() {
                                 new SemNP() {
                                     noun = AIKit_Grammar.EntryFor("person"),
@@ -175,17 +214,30 @@ namespace AIKit {
             this.motivationState = new int[5] { 20, 100, 100, 100, 100 };
         }
 
-        public void GainPerceptOf(List<SemNP> apparentNPs) {
-            Debug.Log("Gained Percept of " + string.Join("/", apparentNPs));
+        public void GainPerceptOf(SemNP objName, List<SemNP> apparentNPs) {
+            if (Prefs.DEBUG) Debug.Log("Gained Percept of " + string.Join("/", apparentNPs));
 
             //only need one subject moniker and object moniker here, others will be derived later (meaning hypernymy and allat) in KM!
-            foreach (SemNP obj in apparentNPs) {
-                //this.addMemory
+            foreach (SemNP obj in apparentNPs)
+            {
+                SemSentence identifyingSentence = new SemSentence();
+                identifyingSentence.np = new SemNP(objName);
+                identifyingSentence.vp = new SemVP();
+                identifyingSentence.vp.verb = AIKit_Grammar.EntryFor("is");
+                identifyingSentence.vp.objects.Add(new SemNP(obj));
+                identifyingSentence.MakeLiteral();
+
+                if (objName != obj) this.addMemory(new Sentence(identifyingSentence));
+            }
+
+            foreach (SemNP obj in apparentNPs)
+            {
                 SemSentence sentence = new SemSentence();
                 sentence.np = this.name;
                 sentence.vp = new SemVP();
-                sentence.vp.verb = AIKit_Grammar.dictionary["see"];
+                sentence.vp.verb = AIKit_Grammar.EntryFor("see");
                 sentence.vp.objects.Add(obj);
+                sentence.MakeLiteral();
 
                 this.knowledgeModule.perceptualFacts.Add(sentence);
                 this.addMemory(new Sentence(sentence));
@@ -211,10 +263,14 @@ namespace AIKit {
                     SemSentence sentence = new SemSentence();
                     sentence.np = subject;
                     sentence.vp = new SemVP();
-                    sentence.vp.verb = AIKit_Grammar.dictionary["see"];
+                    sentence.vp.verb = AIKit_Grammar.EntryFor("see");
                     sentence.vp.objects.Add(obj);
 
                     this.knowledgeModule.perceptualFacts.Remove(sentence);
+
+                    SemSentence sentenceAnti = SemSentence.NewCopy(sentence);
+                    sentenceAnti.vp.verb = AIKit_Grammar.EntryFor("nosee");
+                    this.addMemory(new Sentence(sentenceAnti));
                 }
             }
         }
@@ -227,7 +283,7 @@ namespace AIKit {
         public void addMemory(Sentence s) 
         {
             if (s is null) Debug.LogError(s);
-            Debug.Log("Interpreting "+s.GetSemantics().ToString()+"...");
+            //Debug.Log("Interpreting "+s.GetSemantics().ToString()+"...");
             float sal = 0;
             Connotation con = new Connotation();
 

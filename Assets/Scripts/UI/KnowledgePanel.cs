@@ -48,8 +48,8 @@ public class KnowledgePanel : MonoBehaviour
         string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.GetSemantics().ToString();
         //Debug.Log(s);
 
-        List<AIKit.SemNP> hypernyms = Entity.knowledgeModule.GetHypernyms(Entity.knowledgeModule.lexicalMemory.GetOrInsert(sentenceParsed.GetSemantics().GetFirstNP()));
-        Debug.LogError("Hypernyms for node " + sentenceParsed.GetSemantics().GetFirstNP().ToString() + " - Found: " + string.Join("/", hypernyms));
+        //List<AIKit.SemNP> hypernyms = Entity.knowledgeModule.GetHypernyms(Entity.knowledgeModule.lexicalMemory.GetOrInsert(sentenceParsed.GetSemantics().GetFirstNP()));
+        //Debug.LogError("FINAL Hypernyms for node " + sentenceParsed.GetSemantics().GetFirstNP().ToString() + " - Found: " + string.Join("/", hypernyms));
 
         List<AIKit.SemSentence> returnedSentences = Entity.knowledgeModule.GetSentencesEntailedBy(sentenceParsed.GetSemantics());
         if (returnedSentences.Count > 0)
@@ -68,8 +68,8 @@ public class KnowledgePanel : MonoBehaviour
         string s = "Parsed '"+givenSentence+"' to: "+sentenceParsed.GetSemantics().ToString();
         //Debug.Log(s);
 
-        List<AIKit.SemNP> hyponyms = Entity.knowledgeModule.GetHyponyms(Entity.knowledgeModule.lexicalMemory.GetOrInsert(sentenceParsed.GetSemantics().GetFirstNP()));
-        Debug.LogError("Hyponyms for node " + sentenceParsed.GetSemantics().GetFirstNP().ToString() + " - Found: " + string.Join("/", hyponyms));
+        //List<AIKit.SemNP> hyponyms = Entity.knowledgeModule.GetHyponyms(Entity.knowledgeModule.lexicalMemory.GetOrInsert(sentenceParsed.GetSemantics().GetFirstNP()));
+        //Debug.LogError("FINAL Hyponyms for node " + sentenceParsed.GetSemantics().GetFirstNP().ToString() + " - Found: " + string.Join("/", hyponyms));
 
         List<AIKit.SemSentence> returnedSentences = Entity.knowledgeModule.GetSentencesThatEntail(sentenceParsed.GetSemantics());
         if (returnedSentences.Count > 0)
@@ -106,7 +106,7 @@ public class KnowledgePanel : MonoBehaviour
         //Debug.Log(s);
 
         string output;
-        ConsoleText.text = Entity.knowledgeModule.isTrue(sentenceParsed, out output) ? "This is true.\n" : "This is false.\n";
+        ConsoleText.text = Entity.knowledgeModule.isTrue(sentenceParsed, out output, null) ? "This is true.\n" : "This is false.\n";
         ConsoleText.text += output;
     }
 
@@ -189,6 +189,8 @@ public class TestGraphView : GraphView
 
 public class TestGraphWindow : EditorWindow
 {
+    public bool CollapsePPs = false;
+
     [MenuItem("Graph/Knowledge Graph")]
     public static void OpenWindow()
     {
@@ -283,7 +285,7 @@ public class TestGraphWindow : EditorWindow
 
             foreach (AIKit.SemanticWebEdge edge in semanticWebNode.GetEdges())
             {
-                string outPortName = edge.word.ToString() + ((edge.to is null) ? "." : "->");
+                string outPortName = edge.word.ToString() + (CollapsePPs ? "" : ("(" + string.Join("&",edge.pps) + ")")) + ((edge.to is null) ? "." : "->");
                 Port outPort = graphNode.outputContainer.Q<Port>(name: outPortName);
                 if (outPort is null)
                 {
@@ -296,7 +298,7 @@ public class TestGraphWindow : EditorWindow
 
                 if (edge.to is null)
                 {
-                    Debug.LogError("Edge '" + edge.from.GetAliases()[0] + " " + edge.word.ToString() + "' has no 'to' node.");
+                    Debug.LogError("Edge '" + edge.from.GetAliases()[0] + " " + edge.word.ToString() + (CollapsePPs ? "" : ("(" + string.Join("&", edge.pps) + ")")) + "' has no 'to' node.");
                     continue;
                 }
 
@@ -309,7 +311,7 @@ public class TestGraphWindow : EditorWindow
                     Debug.LogWarning(edge.to.GetString() + " == " + thisNode.GetString() + "? "+ (node.userData == edge.to));
                     return node.userData == edge.to;
                 });
-                string inPortName = "->" + edge.word.ToString();
+                string inPortName = "->" + edge.word.ToString() + (CollapsePPs ? "" : ("(" + string.Join("&", edge.pps) + ")"));
                 Port inPort = targetGraphNode.inputContainer.Q<Port>(name: inPortName);
                 if (inPort is null)
                 {
@@ -323,11 +325,11 @@ public class TestGraphWindow : EditorWindow
                 if (inPort is null || outPort is null)
                 {
                     Debug.LogError("Underfined target or source node! ...");
-                    Debug.LogError("...for edge "+ edge.from.ToString() + edge.word.ToString() + edge.to.ToString() +"!");
+                    Debug.LogError("...for edge "+ edge.from.ToString() + edge.word.ToString() + (CollapsePPs ? "" : ("(" + string.Join("&", edge.pps) + ")")) + edge.to.ToString() +"!");
                 }
 
                 Edge e = outPort.ConnectTo(inPort);
-                e.name = edge.word.ToString();
+                e.name = edge.word.ToString() + (CollapsePPs ? "" : ("(" + string.Join("&", edge.pps) + ")"));
                 e.tooltip = edge.from.GetString() + " " + edge.word + " " + edge.to.GetString();
                 e.edgeControl.outputColor = Color.red;
                 e.edgeControl.inputColor = Color.blue;

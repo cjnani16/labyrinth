@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System;
 using UnityEngine;
+using System.Text.RegularExpressions;
 
 namespace AIKit
 {
@@ -61,7 +62,7 @@ namespace AIKit
 
     public enum WordClass 
     {
-        EMPTY, Name, S, Adj, N, P, V, Vtr, Det, NP, PP, VP, M_if, M_then, Ant, Con, Conj
+        EMPTY, Name, S, Adj, N, P, V, Vtr, Det, NP, PP, VP, M_if, M_then, Ant, Con, Conj, Date
     }
 
     public class FlexibleLexicalEntry : LexicalEntry
@@ -180,6 +181,44 @@ namespace AIKit
         public bool WordEquals(string str) {
             return this.word == str;
         }
+
+        public Date ToDate()
+        {
+            //Debug.LogErrorFormat("Converting {0} to Date...",this.word);
+            if (this.word.StartsWith("date:") && this.wordClass == WordClass.Date)
+            {
+                try
+                {
+                    var vals = word.Substring(word.IndexOf(':')+1).Split(',').ToList().ConvertAll<int>((val) => int.Parse(val));
+                    //Debug.LogError("date vals: " + string.Join("/", vals));
+                    Date d = new Date(vals[0], 0, 0, 0);
+                    if (vals.Count > 1)
+                    {
+                        d.cycle = vals[1];
+                    }
+                    if (vals.Count > 2)
+                    {
+                        d.season = vals[2];
+                    }
+                    if (vals.Count > 3)
+                    {
+                        d.ms = vals[3];
+                    }
+                    return d;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError("vals assignment failed" + this.word);
+                    Debug.LogError(e.Message);
+                    return null;
+                }
+            }
+            else
+            {
+                Debug.LogError("wordclass assert failed" + this.word);
+                return null;
+            }
+        }
     }
  
     public class Sentence 
@@ -226,11 +265,6 @@ namespace AIKit
 
             AppendWord(np.determiner);
             AppendWord(np.noun);
-            SemPP pp = np.pp;
-            while (!(pp is null)) {
-                AppendWord(pp.preposition);
-                AppendNP(pp.np);
-            }
         }
 
         void AppendVP(SemVP vp) {
@@ -244,11 +278,15 @@ namespace AIKit
                 AppendNP(sent.np);
                 AppendVP(sent.vp);
             }
+            foreach (SemPP pp in vp.pps)
+            {
+                AppendWord(pp.preposition);
+                AppendNP(pp.np);
+            }
         }
 
         void AppendWord(LexicalEntry word) {
             if (word is null) return;
-
             lexicalEntries.Add(word);
             lexicalEntryList.Add(word);
             syntax.Add(word.wordClass);
@@ -389,12 +427,12 @@ namespace AIKit
                 }
             );
 
-            //N -> N PP
-            rules[new GrammarTokenList(new List<WordClass>() { WordClass.N, WordClass.PP })] = (WordClass.N,
+            //VP -> VP PP
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.VP, WordClass.PP })] = (WordClass.VP,
                 (product, parts) =>
                 {
-                    SemNP res = parts[0].Item2 as SemNP;
-                    res.pp = parts[1].Item2 as SemPP;
+                    SemVP res = parts[0].Item2 as SemVP;
+                    res.pps.Add(parts[1].Item2 as SemPP);
                     return res;
                 }
             );
@@ -419,6 +457,11 @@ namespace AIKit
                         return res;
                     }
                 }
+            );
+
+            //NP -> Date
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.Date })] = (WordClass.NP,
+                (product, parts) => { return new SemNP { noun = parts[0].Item2 as LexicalEntry, qt = QuoteType.Invalid }; }
             );
 
             //NP -> Name
@@ -478,18 +521,15 @@ namespace AIKit
                 }
             );
 
-            //S -> NP V
-            rules[new GrammarTokenList(new List<WordClass>() { WordClass.NP, WordClass.V })] = (WordClass.S,
+            //VP -> V
+            rules[new GrammarTokenList(new List<WordClass>() { WordClass.V })] = (WordClass.VP,
                 (product, parts) =>
                 {
-                    SemSentence s = new SemSentence
+                    SemVP vp = new SemVP
                     {
-                        //NP is FlexLE?
-                        np = (parts[0].Item2 as SemNP is null) ? new SemNP { noun = parts[0].Item2 as LexicalEntry } : parts[0].Item2 as SemNP,
-                        vp = new SemVP { verb = parts[1].Item2 as LexicalEntry }
+                        verb = parts[0].Item2 as LexicalEntry
                     };
-                    s.MakeLiteral();
-                    return s;
+                    return vp;
                 }
             );
 
@@ -602,7 +642,23 @@ namespace AIKit
         public static LexicalEntry EntryFor(string s) 
         {
             if (!dictReady) ParseDictionary();
-            return dictionary[s];
+
+            if (s.Trim() == "now")
+            {
+                LexicalEntry datele = AIKit_World.Now().ToLexicalEntry();
+                if (!(datele.ToDate() is null)) return datele;
+            }
+
+            if (Regex.Match(s.Trim(), "^date:[0-9]+(,[0-9]+){0,3}$").Success)
+            {
+                LexicalEntry datele = new LexicalEntry(s, WordClass.Date, GenerativeWordClass.Dates, Connotation.Neutral);
+                if (!(datele.ToDate() is null)) return datele;
+            }
+
+            if (dictionary.ContainsKey(s))
+                return dictionary[s];
+            else
+                return null;
         }
 
         static void ParseDictionary()
@@ -881,15 +937,15 @@ namespace AIKit
 
             for (int i = 0; i < words.Count; i++)
             {
-                if (!dictionary.ContainsKey(words[i]))
+                LexicalEntry le = EntryFor(words[i]);
+                if (le is null)
                 {
                     if (Prefs.DEBUG) Debug.LogError("Unknown word: " + words[i]);
                     words[i] = "???";
                 }
                 else
                 {
-                    Debug.LogFormat("{0} => {1}", words[i], dictionary[words[i]]);
-                    lexicalEntries.Add(dictionary[words[i]]);
+                    lexicalEntries.Add(le);
                 }
             }
 
@@ -897,11 +953,12 @@ namespace AIKit
 
             if (res.Item1)
             {
+                if (Prefs.DEBUG) Debug.LogFormat("Grammar validated for {0}! Assembling sentence", res.Item2.ToString());
                 return new Sentence(res.Item2);
             }
             else
             {
-                if (Prefs.DEBUG) Debug.LogError(string.Join(" ", words.ToArray()));
+                Debug.LogError(string.Join(" ", words.ToArray()));
                 throw new System.Exception("Sentence non-grammatical!");
             }
         }
@@ -915,7 +972,7 @@ namespace AIKit
                 //will have to figure out how to determine singular vs plural they..
                 if (fill.noun.WordEquals("it") || fill.noun.WordEquals("he") || fill.noun.WordEquals("she")) {
                     fill = new SemNP(context);
-                    fill.determiner = AIKit_Grammar.dictionary["some"];
+                    fill.determiner = AIKit_Grammar.EntryFor("some");
                 }
             } 
             else fill = new SemNP(context);
@@ -981,16 +1038,27 @@ namespace AIKit
 
             //check if subj is pronoun
             if (context.np.noun.generativeWordClass == GenerativeWordClass.Deictic) {
-                filled.np = context.np;
+                //don't want to forget the original antecedent... so we shall store the antecedent as another object following the object holding the pronoun
+                filled.np = new SemNP(context.np) { antecedent = new SemNP(filled.np) };
+            }
+            else if (filled.np.noun.generativeWordClass == GenerativeWordClass.Deictic)
+            {
+                LexicalEntry det = (context.np.determiner.WordEquals("any")) ? AIKit_Grammar.EntryFor("some") : context.np.determiner;
+                filled.np = new SemNP(filled.np) { antecedent = new SemNP(context.np) { determiner = det } };
             }
 
             //check if obj is pronoun
             for (int i = 0; i < context.vp.objects.Count; i++) {
                 if (context.vp.objects[i].noun.generativeWordClass == GenerativeWordClass.Deictic) {
                     if (filled.vp.objects.Count > i)
-                        filled.vp.objects[i] = context.vp.objects[i];
+                        filled.vp.objects[i] = new SemNP(context.vp.objects[i]) { antecedent = new SemNP(filled.vp.objects[i]) };
                     else
-                        filled.vp.objects[filled.vp.objects.Count - 1] = context.vp.objects[i];
+                        filled.vp.objects[filled.vp.objects.Count - 1] = new SemNP(context.vp.objects[i]) { antecedent = new SemNP(filled.vp.objects[filled.vp.objects.Count - 1]) };
+                }
+                else if (filled.vp.objects[i].noun.generativeWordClass == GenerativeWordClass.Deictic)
+                {
+                    LexicalEntry det = (context.vp.objects[i].determiner.WordEquals("any")) ? AIKit_Grammar.EntryFor("some") : context.vp.objects[i].determiner;
+                    filled.vp.objects[i] = new SemNP(filled.vp.objects[i]) { antecedent = new SemNP(context.vp.objects[i]) { determiner = det } };
                 }
             }
 

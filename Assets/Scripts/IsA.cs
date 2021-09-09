@@ -11,9 +11,12 @@ namespace AIKit
         public List<string> InitialIdentity;
         public bool IsPlayer;
         List<List<LexicalEntry>> Iam;
+        int DestroyOnNextUpdate;
+
 
         public IsA() {
             Iam = new List<List<LexicalEntry>>();
+            DestroyOnNextUpdate = 0;
         }
 
         public bool AreYouPlayer() {
@@ -74,6 +77,21 @@ namespace AIKit
                 }
             }
             return s;
+        }
+
+        public void DestroyObject()
+        {
+            this.transform.position = new Vector3(100000000.0f, 10000000.0f, 10000000.0f); //move out of view
+            this.DestroyOnNextUpdate = 2;
+        }
+
+        public void Update()
+        {
+            if (this.DestroyOnNextUpdate > 0 && --this.DestroyOnNextUpdate == 0)
+            {
+                this.gameObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                this.gameObject.SetActive(false);
+            }
         }
     }
 }

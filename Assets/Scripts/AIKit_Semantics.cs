@@ -15,16 +15,16 @@ namespace AIKit
             this.determiner = null;
             this.adjectives = new List<LexicalEntry>();
             this.noun = null;
-            this.pp = null;
             this.qt = QuoteType.Literal;
+            this.antecedent = null;
         }
 
         public SemNP(SemNP original) {
             this.determiner = original.determiner;
             this.adjectives = new List<LexicalEntry>(original.adjectives);
             this.noun = new LexicalEntry(original.noun);
-            this.pp = (original.pp is null) ? null : new SemPP(original.pp);
             this.qt = original.qt;
+            this.antecedent = original.antecedent;
         }
         //the
         public LexicalEntry determiner;
@@ -32,8 +32,8 @@ namespace AIKit
         public List<LexicalEntry> adjectives;
         //house
         public LexicalEntry noun;
-        public SemPP pp;
         public QuoteType qt; //is this literal? Important for Semantic Web
+        public SemNP antecedent;
 
         public override string ToString() {
             string s = "( ";
@@ -43,8 +43,8 @@ namespace AIKit
                 s += le.ToString() + ", ";
             }
             s += ")- " + ((noun is null)?"NULL-N":noun.ToString());
+            s += (antecedent is null) ? "" : "~" + antecedent.ToString();
             s += " )";
-            if (!(pp is null)) s += "<-" + pp.ToString();
 
             switch (qt)
             {
@@ -73,6 +73,9 @@ namespace AIKit
             if (other.determiner is null != this.determiner is null) return false;
             if (!(this.determiner is null) && this.determiner != other.determiner) return false;
 
+            if (other.antecedent is null != this.antecedent is null) return false;
+            if (!(this.antecedent is null) && this.antecedent != other.antecedent) return false;
+
             if ((other.adjectives is null) != (this.adjectives is null)) return false;
             //Debug.LogWarning("5");
             return Helper.ListFlexMatch(adjectives, other.adjectives);
@@ -94,18 +97,22 @@ namespace AIKit
             this.verb = null;
             this.objects = new List<SemNP>();
             this.sentenceObjects = new List<SemSentence>();
+            this.pps = new List<SemPP>();
         }
 
         public SemVP(SemVP original) {
             this.verb = original.verb;
             this.objects = original.objects.ConvertAll((obj) => new SemNP(obj));
             this.sentenceObjects = new List<SemSentence>(original.sentenceObjects);
+            this.pps = new List<SemPP>(original.pps);
         }
         //throw
         public LexicalEntry verb;
         //the ball, a fit
         public List<SemNP> objects;
         public List<SemSentence> sentenceObjects;
+        //to me
+        public List<SemPP> pps;
 
         public override string ToString() {
             string s = verb.ToString() + " => {";
@@ -116,6 +123,15 @@ namespace AIKit
                 s += sen.ToString() + "& ";
             }
             s += "}";
+            if (pps.Count > 0)
+            {
+                s += "<- (";
+                foreach (SemPP pp in pps)
+                {
+                    s += pp.ToString() + "& ";
+                }
+                s += ")";
+            }
             return s;
         }
 
@@ -158,7 +174,128 @@ namespace AIKit
         public override string ToString() {
             return preposition.ToString() + " => {" + np.ToString() + "}";
         }
-        
+
+        public override bool Equals(object obj)
+        {
+            if (obj is null || obj as SemPP is null) return false;
+
+            SemPP other = obj as SemPP;
+
+            if (other.preposition is null || this.preposition is null) return false;
+
+            if (this.np != other.np) return false;
+
+            return true;
+        }
+        public static bool operator ==(SemPP a, SemPP b)
+        {
+            return (a.Equals(b));
+        }
+        public static bool operator !=(SemPP a, SemPP b)
+        {
+            return !(a.Equals(b));
+        }
+        public override int GetHashCode()
+        {
+            return this.ToString().GetHashCode();
+        }
+
+        public bool ImpliedBy(SemPP other)
+        {
+            LexicalEntry otherPreposition = other.preposition;
+
+            //Debug.LogFormat("Is {0} necesarily implied by {1}?", this, other);
+            //does other imply this?
+            //e.g. since tuesday 3/2 implies since monday 3/1
+
+            if (Equals(other)) return true;
+
+            Date thisDate = np.noun.ToDate();
+            Date otherDate = other.np.noun.ToDate();
+
+            if (thisDate is null || otherDate is null) return false;
+
+            switch (preposition.GetWord())
+            {
+                case "since":
+                case "after":
+                    switch (other.preposition.GetWord())
+                    {
+                        case "since":
+                        case "after":
+                            //after monday < after tuesday
+                            //Debug.Log("1  thisDate < otherDate" );
+                            return thisDate < otherDate;
+                        case "before":
+                            //after monday < before tuesday? no
+                            //Debug.Log("2  false");
+                            return false;
+                        case "on":
+                            //after monday < on tuesday
+                            //Debug.Log("3  thisDate < otherDate");
+                            return thisDate < otherDate;
+                        default:
+                            Debug.LogError("unsupported prep");
+                            return false;
+                    }
+
+                case "before":
+                    switch (other.preposition.GetWord())
+                    {
+                        case "since":
+                        case "after":
+                            //before tuesday < after monday? no
+                            //Debug.Log("4  false");
+                            return false;
+                        case "before":
+                            //before tuesday < before monday? yes
+                            //Debug.Log("5  thisDate > otherDate");
+                            return thisDate > otherDate;
+                        case "on":
+                            //before tuesday < on monday? yes
+                            //Debug.LogFormat("6  thisDate > otherDate{0}", thisDate > otherDate);
+                            return thisDate > otherDate;
+                        default:
+                            Debug.LogError("unsupported prep");
+                            return false;
+                    }
+
+                case "on":
+                    switch (other.preposition.GetWord())
+                    {
+                        case "since":
+                        case "after":
+                            //on tuesday < after monday? no
+                            //Debug.Log("7  false");
+                            return false;
+                        case "before":
+                            //on tuesday < before wednesday? no
+                            //Debug.Log("8  false");
+                            return false;
+                        case "on":
+                            //on tuesday < on tuesday? yes
+                            //Debug.Log("9  thisDate == otherDate");
+                            return thisDate == otherDate;
+                        default:
+                            Debug.LogError("unsupported prep");
+                            return false;
+                    }
+
+                default:
+                    Debug.LogError("unsupported prep");
+                    return false;
+            }
+        }
+
+        public static bool operator <(SemPP a, SemPP b)
+        {
+            return a.ImpliedBy(b);
+        }
+
+        public static bool operator >(SemPP a, SemPP b)
+        {
+            return b.ImpliedBy(a);
+        }
     }
     public class SemSentence {
         //{the little kid}
@@ -233,7 +370,10 @@ namespace AIKit
             {
                 s.MakeLiteral();
             }
-
+            foreach (SemPP pp in this.vp.pps)
+            {
+                pp.np.qt = QuoteType.Literal;
+            }
         }
 
         //useful for the web
